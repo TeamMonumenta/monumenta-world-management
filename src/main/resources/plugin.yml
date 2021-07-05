@@ -1,0 +1,7 @@
+name: MonumentaWorldManagement
+main: com.playmonumenta.worlds.WorldManagement
+version: 0.0.1
+api-version: 1.13
+depend: [CommandAPI,MonumentaNetworkRelay,MonumentaRedisSync]
+softdepend: []
+commands:

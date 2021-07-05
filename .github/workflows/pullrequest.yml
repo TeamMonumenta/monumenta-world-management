@@ -1,0 +1,51 @@
+name: Pull request CI
+
+on: [pull_request]
+
+jobs:
+  reviewdog:
+    name: reviewdog
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up JDK 11
+      uses: actions/setup-java@v2
+      with:
+        distribution: 'zulu' # See 'Supported distributions' for available options
+        java-version: '11'
+
+    - name: Setup reviewdog
+      uses: reviewdog/action-setup@v1
+      with:
+        reviewdog_version: latest
+
+    - name: git config
+      run: |
+        git config --global user.name "Monumenta CI"
+        git config --global user.email "Monumenta.CI@NotARealEmail.com"
+
+    - name: Cache maven dependencies
+      uses: actions/cache@v2
+      env:
+        cache-name: cache-maven-dependencies
+      with:
+        # maven files are stored in `~/.m2/repository`
+        path: ~/.m2/repository
+        # Create the key based on runner os, cache name, and a hash of all the pom.xml files
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pom.xml') }}
+
+    - name: Build and report style/pmd/warnings
+      env:
+        REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        set -o pipefail
+        ./compile.sh --batch-mode --no-snapshot-updates | tee compile.log
+        set +o pipefail
+        cat compile.log | grep '^\[WARNING\].*\.java' | reviewdog -efm="[WARNING] %f:[%l,%c] %m" -name="compiler-warnings" -reporter=github-pr-check
+        set -o pipefail
+
+        ./mvn_version_wrapper.sh checkstyle:checkstyle --batch-mode --no-snapshot-updates
+        cat target/checkstyle-result.xml | reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-check
+
+        ./mvn_version_wrapper.sh pmd:pmd --batch-mode --no-snapshot-updates
+        cat target/pmd.txt | reviewdog -efm="%f:%l:	%m" -name="pmd" -reporter=github-pr-check
