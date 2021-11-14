@@ -2,3 +2,18 @@
 # Should be one of: ALL FINEST FINER FINE INFO WARNING SEVERE OFF
 log-level: INFO
 
+# Name of the template world that will be copied to generate new instances
+# Should be all lowercase
+template-world-name: template
+
+# Base name of instanced worlds. Worlds will be named <basename>-# (i.e. instance-1, instance-2, etc.)
+# Should be all lowercase
+base-world-name: instance
+
+# Whether or not this server should automatically manage world instances.
+# If set to false this plugin will only provide world management commands / API
+# If set to true, this plugin will automatically load, unload, and manage worlds based on player instance scores
+is-instanced: false
+
+# The scoreboard objective used to determine what world instance a player should be sent to
+instance-objective: Instance

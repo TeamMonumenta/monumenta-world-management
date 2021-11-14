@@ -13,7 +13,13 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class WorldManagementPlugin extends JavaPlugin {
+	private static WorldManagementPlugin INSTANCE = null;
+
 	private CustomLogger mLogger = null;
+	private String mTemplateWorldName = "template";
+	private String mBaseWorldName = "world";
+	private boolean mIsInstanced = false;
+	private String mInstanceObjective = "Instance";
 
 	@Override
 	public void onLoad() {
@@ -22,6 +28,12 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 	@Override
 	public void onEnable() {
+		INSTANCE = this;
+
+		loadConfig();
+	}
+
+	protected void loadConfig() {
 		File configFile = new File(getDataFolder(), "config.yml");
 
 		/* Create the config file & directories if it does not exist */
@@ -41,6 +53,10 @@ public class WorldManagementPlugin extends JavaPlugin {
 		YamlConfiguration config = YamlConfiguration.loadConfiguration(configFile);
 
 		String logLevel = config.getString("log-level", "INFO");
+		mTemplateWorldName = config.getString("template-world-name", mTemplateWorldName);
+		mBaseWorldName = config.getString("base-world-name", mBaseWorldName);
+		mIsInstanced = config.getBoolean("is-instanced", mIsInstanced);
+		mInstanceObjective = config.getString("instance-objective", mInstanceObjective);
 
 		/* Echo config */
 		try {
@@ -51,9 +67,25 @@ public class WorldManagementPlugin extends JavaPlugin {
 		}
 	}
 
+	protected String getTemplateWorldName() {
+		return mTemplateWorldName;
+	}
+
+	protected String getBaseWorldName() {
+		return mBaseWorldName;
+	}
+
+	protected boolean isInstanced() {
+		return mIsInstanced;
+	}
+
+	protected String getInstanceObjective() {
+		return mInstanceObjective;
+	}
+
 	@Override
 	public void onDisable() {
-
+		INSTANCE = null;
 	}
 
 	@Override
@@ -64,8 +96,12 @@ public class WorldManagementPlugin extends JavaPlugin {
 		return mLogger;
 	}
 
-	public void setLogLevel(Level level) {
+	protected void setLogLevel(Level level) {
 		super.getLogger().info("Changing log level to: " + level.toString());
 		getLogger().setLevel(level);
+	}
+
+	protected static WorldManagementPlugin getInstance() {
+		return INSTANCE;
 	}
 }
