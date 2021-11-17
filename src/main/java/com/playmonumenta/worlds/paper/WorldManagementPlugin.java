@@ -16,12 +16,15 @@ import org.bukkit.plugin.java.JavaPlugin;
 public class WorldManagementPlugin extends JavaPlugin {
 	private static WorldManagementPlugin INSTANCE = null;
 
-	private CustomLogger mLogger = null;
-	private String mTemplateWorldName = "template";
-	private String mBaseWorldName = "world";
-	private boolean mIsInstanced = false;
-	private boolean mAllowInstanceAutocreation = false;
-	private String mInstanceObjective = "Instance";
+	private static CustomLogger mLogger = null;
+	private static String mTemplateWorldName = "template";
+	private static String mBaseWorldName = "world";
+	private static boolean mIsInstanced = false;
+	private static boolean mAllowInstanceAutocreation = false;
+	private static int mUnloadInactiveWorldAfterTicks = 10 * 60 * 20;
+	private static String mInstanceObjective = "Instance";
+
+	private WorldManagementListener mListener = null;
 
 	@Override
 	public void onLoad() {
@@ -34,7 +37,8 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 		loadConfig();
 
-		Bukkit.getPluginManager().registerEvents(new WorldManagementListener(), this);
+		mListener = new WorldManagementListener(this);
+		Bukkit.getPluginManager().registerEvents(mListener, this);
 	}
 
 	protected void loadConfig() {
@@ -61,6 +65,7 @@ public class WorldManagementPlugin extends JavaPlugin {
 		mBaseWorldName = config.getString("base-world-name", mBaseWorldName);
 		mIsInstanced = config.getBoolean("is-instanced", mIsInstanced);
 		mAllowInstanceAutocreation = config.getBoolean("allow-instance-autocreation", mAllowInstanceAutocreation);
+		mUnloadInactiveWorldAfterTicks = config.getInt("unload-inactive-world-after-ticks", mUnloadInactiveWorldAfterTicks);
 		mInstanceObjective = config.getString("instance-objective", mInstanceObjective);
 
 		/* Echo config */
@@ -70,25 +75,33 @@ public class WorldManagementPlugin extends JavaPlugin {
 		} catch (Exception ex) {
 			getLogger().warning("log-level=" + logLevel + " is invalid - defaulting to INFO");
 		}
+
+		if (mListener != null) {
+			mListener.reloadConfig(this);
+		}
 	}
 
-	public String getTemplateWorldName() {
+	public static String getTemplateWorldName() {
 		return mTemplateWorldName;
 	}
 
-	public String getBaseWorldName() {
+	public static String getBaseWorldName() {
 		return mBaseWorldName;
 	}
 
-	public boolean isInstanced() {
+	public static boolean isInstanced() {
 		return mIsInstanced;
 	}
 
-	public boolean mAllowInstanceAutocreation() {
+	public static boolean allowInstanceAutocreation() {
 		return mAllowInstanceAutocreation;
 	}
 
-	public String getInstanceObjective() {
+	public static int getUnloadInactiveWorldAfterTicks() {
+		return mUnloadInactiveWorldAfterTicks;
+	}
+
+	public static String getInstanceObjective() {
 		return mInstanceObjective;
 	}
 

@@ -21,3 +21,10 @@ allow-instance-autocreation: true
 
 # The scoreboard objective used to determine what world instance a player should be sent to
 instance-objective: Instance
+
+# After how many ticks of no players should a world be unloaded?
+# This setting only takes effect if is-instanced is true
+# Will not unload the primary world
+# Set to <= 0 to disable automatic unloading
+# The system that manages this checks world activity every 10s
+unload-inactive-world-after-ticks: 12000
