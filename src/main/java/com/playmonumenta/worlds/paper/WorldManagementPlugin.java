@@ -9,6 +9,7 @@ import java.util.logging.Logger;
 
 import com.playmonumenta.worlds.common.CustomLogger;
 
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -19,6 +20,7 @@ public class WorldManagementPlugin extends JavaPlugin {
 	private String mTemplateWorldName = "template";
 	private String mBaseWorldName = "world";
 	private boolean mIsInstanced = false;
+	private boolean mAllowInstanceAutocreation = false;
 	private String mInstanceObjective = "Instance";
 
 	@Override
@@ -31,6 +33,8 @@ public class WorldManagementPlugin extends JavaPlugin {
 		INSTANCE = this;
 
 		loadConfig();
+
+		Bukkit.getPluginManager().registerEvents(new WorldManagementListener(), this);
 	}
 
 	protected void loadConfig() {
@@ -56,6 +60,7 @@ public class WorldManagementPlugin extends JavaPlugin {
 		mTemplateWorldName = config.getString("template-world-name", mTemplateWorldName);
 		mBaseWorldName = config.getString("base-world-name", mBaseWorldName);
 		mIsInstanced = config.getBoolean("is-instanced", mIsInstanced);
+		mAllowInstanceAutocreation = config.getBoolean("allow-instance-autocreation", mAllowInstanceAutocreation);
 		mInstanceObjective = config.getString("instance-objective", mInstanceObjective);
 
 		/* Echo config */
@@ -67,19 +72,23 @@ public class WorldManagementPlugin extends JavaPlugin {
 		}
 	}
 
-	protected String getTemplateWorldName() {
+	public String getTemplateWorldName() {
 		return mTemplateWorldName;
 	}
 
-	protected String getBaseWorldName() {
+	public String getBaseWorldName() {
 		return mBaseWorldName;
 	}
 
-	protected boolean isInstanced() {
+	public boolean isInstanced() {
 		return mIsInstanced;
 	}
 
-	protected String getInstanceObjective() {
+	public boolean mAllowInstanceAutocreation() {
+		return mAllowInstanceAutocreation;
+	}
+
+	public String getInstanceObjective() {
 		return mInstanceObjective;
 	}
 

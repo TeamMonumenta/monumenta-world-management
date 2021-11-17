@@ -15,5 +15,9 @@ base-world-name: instance
 # If set to true, this plugin will automatically load, unload, and manage worlds based on player instance scores
 is-instanced: false
 
+# If set to true and a world joins with an instance score that doesn't already have a corresponding world,
+# a new world will be copied & loaded automatically from the template world
+allow-instance-autocreation: true
+
 # The scoreboard objective used to determine what world instance a player should be sent to
 instance-objective: Instance
