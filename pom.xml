@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.playmonumenta</groupId>
-    <artifactId>monumenta-world-management</artifactId>
+    <artifactId>worlds</artifactId>
     <version>dev</version>
 
     <properties>
