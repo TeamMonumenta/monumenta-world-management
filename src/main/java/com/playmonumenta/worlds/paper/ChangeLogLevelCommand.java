@@ -118,5 +118,26 @@ public class ChangeLogLevelCommand {
 						sender.sendMessage("Created and loaded world '" + worldName + "' from master copy");
 					}))
 			).register();
+
+		// Register a copy of "/monumenta worldManagement forceworld @s world" as "/w world" for convenience
+		new CommandAPICommand("world")
+			.withPermission(CommandPermission.fromString("monumenta.worldmanagement.forceworld"))
+			.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getAvailableWorlds()))
+			.executesPlayer((player, args) -> {
+				String worldName = (String)args[0];
+
+				try {
+					World newWorld = MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, false, false);
+
+					Location loc = player.getLocation();
+					loc.setWorld(newWorld);
+					player.teleport(loc);
+
+					player.sendMessage("Loaded world '" + worldName + "' and moved to it");
+				} catch (Exception ex) {
+					CommandAPI.fail(ex.getMessage());
+				}
+			})
+			.register();
 	}
 }
