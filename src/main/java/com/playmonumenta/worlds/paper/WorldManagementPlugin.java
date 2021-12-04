@@ -39,6 +39,8 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 		mListener = new WorldManagementListener(this);
 		Bukkit.getPluginManager().registerEvents(mListener, this);
+
+		MonumentaWorldManagementAPI.refreshCachedAvailableWorlds();
 	}
 
 	protected void loadConfig() {

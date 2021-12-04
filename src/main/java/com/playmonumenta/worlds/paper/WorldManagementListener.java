@@ -24,15 +24,23 @@ public class WorldManagementListener implements Listener {
 		reloadConfig(plugin);
 	}
 
-
 	@EventHandler(priority = EventPriority.HIGHEST)
 	public void playerJoinSetWorldEvent(PlayerJoinSetWorldEvent event) {
+		Player player = event.getPlayer();
+
 		if (!WorldManagementPlugin.isInstanced()) {
-			// Nothing to do if not instanced
+			// If not an instanced server, still try to load the player's last world & put them there
+			try {
+				World world = MonumentaWorldManagementAPI.ensureWorldLoaded(event.getLastSavedWorldName(), false, false);
+				event.setWorld(world);
+			} catch (Exception ex) {
+				String msg = "Failed to load the last world you were on (" + event.getLastSavedWorldName() + "): " + ex.getMessage();
+				player.sendMessage(msg);
+				WorldManagementPlugin.getInstance().getLogger().warning(msg);
+				ex.printStackTrace();
+			}
 			return;
 		}
-
-		Player player = event.getPlayer();
 
 		int score = ScoreboardUtils.getScoreboardValue(player, WorldManagementPlugin.getInstanceObjective()).orElse(0);
 		if (score <= 0) {
@@ -56,7 +64,7 @@ public class WorldManagementListener implements Listener {
 			mRunnable = null;
 		}
 
-		if (WorldManagementPlugin.isInstanced() && WorldManagementPlugin.getUnloadInactiveWorldAfterTicks() > 0) {
+		if (WorldManagementPlugin.getUnloadInactiveWorldAfterTicks() > 0) {
 			mRunnable = new BukkitRunnable() {
 				Map<UUID, Integer> mWorldIdleTimes = new HashMap<>();
 

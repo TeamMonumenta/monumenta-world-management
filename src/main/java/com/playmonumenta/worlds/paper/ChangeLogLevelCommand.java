@@ -4,9 +4,12 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
+import com.playmonumenta.redissync.MonumentaRedisSyncAPI;
+
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
+import org.bukkit.ChatColor;
 import org.bukkit.World;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import dev.jorel.commandapi.CommandAPI;
@@ -15,6 +18,7 @@ import dev.jorel.commandapi.CommandPermission;
 import dev.jorel.commandapi.arguments.EntitySelectorArgument;
 import dev.jorel.commandapi.arguments.EntitySelectorArgument.EntitySelector;
 import dev.jorel.commandapi.arguments.StringArgument;
+import dev.jorel.commandapi.exceptions.WrapperCommandSyntaxException;
 
 public class ChangeLogLevelCommand {
 	public static void register(WorldManagementPlugin worldPlugin) {
@@ -52,7 +56,7 @@ public class ChangeLogLevelCommand {
 					}))
 				.withSubcommand(new CommandAPICommand("loadworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.loadworld"))
-					.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getAvailableWorlds()))
+					.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
 					.executes((sender, args) -> {
 						String worldName = (String)args[0];
 
@@ -81,22 +85,9 @@ public class ChangeLogLevelCommand {
 				.withSubcommand(new CommandAPICommand("forceworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.forceworld"))
 					.withArguments(new EntitySelectorArgument("player", EntitySelector.ONE_PLAYER))
-					.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getAvailableWorlds()))
+					.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
 					.executes((sender, args) -> {
-						Player player = (Player)args[0];
-						String worldName = (String)args[1];
-
-						try {
-							World newWorld = MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, false, false);
-
-							Location loc = player.getLocation();
-							loc.setWorld(newWorld);
-							player.teleport(loc);
-
-							sender.sendMessage("Loaded world '" + worldName + "' and sent player to it");
-						} catch (Exception ex) {
-							CommandAPI.fail(ex.getMessage());
-						}
+						forceWorld(sender, (Player)args[0], (String)args[1]);
 					}))
 				.withSubcommand(new CommandAPICommand("createworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.createworld"))
@@ -122,22 +113,27 @@ public class ChangeLogLevelCommand {
 		// Register a copy of "/monumenta worldManagement forceworld @s world" as "/w world" for convenience
 		new CommandAPICommand("world")
 			.withPermission(CommandPermission.fromString("monumenta.worldmanagement.forceworld"))
-			.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getAvailableWorlds()))
+			.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
 			.executesPlayer((player, args) -> {
-				String worldName = (String)args[0];
+				forceWorld(player, player, (String)args[0]);
+			})
+			.register();
+	}
 
+	private static void forceWorld(CommandSender sender, Player player, String worldName) throws WrapperCommandSyntaxException {
+			// Important - need to save the player's location data on the existing world
+			player.saveData();
+			Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
 				try {
 					World newWorld = MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, false, false);
 
-					Location loc = player.getLocation();
-					loc.setWorld(newWorld);
-					player.teleport(loc);
-
-					player.sendMessage("Loaded world '" + worldName + "' and moved to it");
+					MonumentaRedisSyncAPI.getPlayerWorldData(player, newWorld).applyToPlayer(player);
 				} catch (Exception ex) {
-					CommandAPI.fail(ex.getMessage());
+					sender.sendMessage(ChatColor.RED + ex.getMessage());
+					ex.printStackTrace();
 				}
-			})
-			.register();
+			}, 1);
+
+			player.sendMessage("Loaded world '" + worldName + "' and moved to it");
 	}
 }
