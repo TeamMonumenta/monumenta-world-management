@@ -1,6 +1,7 @@
 package com.playmonumenta.worlds.paper;
 
 import java.io.File;
+import java.util.Arrays;
 
 import org.bukkit.Bukkit;
 import org.bukkit.World;
@@ -9,6 +10,20 @@ import org.bukkit.WorldCreator;
 import org.bukkit.WorldType;
 
 public class MonumentaWorldManagementAPI {
+
+	private static String[] AVAILABLE_WORLDS_CACHE = new String[0];
+
+	/**
+	 * Checks whether the named world exists and could be loaded, using the cache. Fast and suitable for main thread.
+	 */
+	public static boolean isCachedWorldAvailable(String worldName) {
+		for (String name : AVAILABLE_WORLDS_CACHE) {
+			if (name.equals(worldName)) {
+				return true;
+			}
+		}
+		return false;
+	}
 
 	/**
 	 * Checks whether the named world exists and could be loaded.
@@ -25,9 +40,18 @@ public class MonumentaWorldManagementAPI {
 	}
 
 	/**
+	 * Gets a list of all the named world folders from the cache. Fast and suitable for main thread.
+	 */
+	public static String[] getCachedAvailableWorlds() {
+		return AVAILABLE_WORLDS_CACHE;
+	}
+
+	/**
 	 * Gets a list of all the named world folders.
 	 *
 	 * Note that this uses file I/O and so will be slow - recommend calling this only from an async thread
+	 *
+	 * Updates the available worlds cache, but may take a tick or two before the cache is updated
 	 */
 	public static String[] getAvailableWorlds() {
 		File root = new File(".");
@@ -39,7 +63,20 @@ public class MonumentaWorldManagementAPI {
 			}
 			return false;
 		});
+		Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
+			AVAILABLE_WORLDS_CACHE = directories;
+		});
 		return directories;
+	}
+
+	/**
+	 * Refreshes the available worlds cache async. Expected to be called on main thread.
+	 * Note that the cache may not be updated for several ticks!
+	 */
+	public static void refreshCachedAvailableWorlds() {
+		Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), () -> {
+			getAvailableWorlds();
+		});
 	}
 
 	/**
@@ -82,13 +119,24 @@ public class MonumentaWorldManagementAPI {
 				throw new Exception("World '" + worldName + "' does not exist and copyTemplateIfNotExist is false");
 			}
 
-			Process process = Runtime.getRuntime().exec("/automation/utility_code/copy_world.py" + " " + plugin.getTemplateWorldName() + " " + worldName);
+			//TODO: This needs to be a config option, or bundled with this plugin somehow
+			Process process = Runtime.getRuntime().exec("/automation/utility_code/copy_world.py" + " " + WorldManagementPlugin.getTemplateWorldName() + " " + worldName);
 
 			int exitVal = process.waitFor();
 			if (exitVal != 0) {
 				String msg = "Failed to copy world '" + "template" + "' to '" + worldName + "': " + exitVal;
 				plugin.getLogger().severe(msg);
 				throw new Exception(msg);
+			}
+
+			if (calledAsync) {
+				Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
+					AVAILABLE_WORLDS_CACHE = Arrays.copyOf(AVAILABLE_WORLDS_CACHE, AVAILABLE_WORLDS_CACHE.length + 1);
+					AVAILABLE_WORLDS_CACHE[AVAILABLE_WORLDS_CACHE.length - 1] = worldName;
+				});
+			} else {
+				AVAILABLE_WORLDS_CACHE = Arrays.copyOf(AVAILABLE_WORLDS_CACHE, AVAILABLE_WORLDS_CACHE.length + 1);
+				AVAILABLE_WORLDS_CACHE[AVAILABLE_WORLDS_CACHE.length - 1] = worldName;
 			}
 
 			plugin.getLogger().fine("Created new world instance '" + worldName + "'");
