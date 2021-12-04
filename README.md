@@ -2,11 +2,15 @@
 
 Bungeecord & network aware world management / instancing system. Depends on MonumentaNetworkRelay and MonumentaRedisSync.
 
-Currently provides tools for loading & unloading worlds automatically when players join with nonzero instance scores.
+Provides tools for loading, unloading, copying, and moving players between worlds.
 
-This plugin will eventually be a generic tool useful for any server, but specifically developed to support large world instancing like Monumenta's dungeons.
+Also has an instance awareness system that is scoreboard based and configurable, allowing instances to be created on demand.
 
-More is planned in the future, this should be considered unstable / WIP for now
+Because of integration with MonumentaRedisSync, worlds are loaded seamlessly when players join, there is no transition where they briefly land on a default world and need sorting.
+
+There is also a full-featured API to allow other plugins to use these same features.
+
+As of 1.2 this plugin is stable and usable.
 
 ## Download
 You can download the latest version of this plugin from [GitHub Packages](https://github.com/TeamMonumenta/monumenta-world-management/packages).
@@ -24,7 +28,7 @@ You can download the latest version of this plugin from [GitHub Packages](https:
         <dependency>
             <groupId>com.playmonumenta</groupId>
             <artifactId>worlds</artifactId>
-            <version>1.1</version>
+            <version>1.2</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
