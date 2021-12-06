@@ -100,13 +100,66 @@ public class ChangeLogLevelCommand {
 							return;
 						}
 
-						try {
-							MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, false, true);
-						} catch (Exception ex) {
-							CommandAPI.fail(ex.getMessage());
+						sender.sendMessage("Started creating world '" + worldName + "' from master copy");
+						Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), () -> {
+							try {
+								MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, true, true);
+								Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
+									sender.sendMessage("Created and loaded world '" + worldName + "' from master copy");
+								});
+							} catch (Exception ex) {
+								Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
+									sender.sendMessage("Failed to create world '" + worldName + "': " + ex.getMessage());
+								});
+							}
+						});
+
+					}))
+				.withSubcommand(new CommandAPICommand("createworld")
+					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.createworld"))
+					.withArguments(new StringArgument("worldName"))
+					.withArguments(new StringArgument("copyFromWorldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
+					.executes((sender, args) -> {
+						String worldName = (String)args[0];
+						String copyFromWorldName = (String)args[1];
+
+						if (MonumentaWorldManagementAPI.isWorldAvailable(worldName)) {
+							sender.sendMessage("World '" + worldName + "' already exists, this command is for creating new worlds");
+							return;
 						}
 
-						sender.sendMessage("Created and loaded world '" + worldName + "' from master copy");
+						if (!MonumentaWorldManagementAPI.isWorldAvailable(copyFromWorldName)) {
+							sender.sendMessage("Copy-from world '" + copyFromWorldName + "' does not exist");
+							return;
+						}
+
+						sender.sendMessage("Started creating world '" + worldName + "' using '" + copyFromWorldName + "' as the template");
+						Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), () -> {
+							try {
+								MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, true, true, copyFromWorldName);
+								Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
+									sender.sendMessage("Created and loaded world '" + worldName + "' using '" + copyFromWorldName + "' as the template");
+								});
+							} catch (Exception ex) {
+								Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
+									sender.sendMessage("Failed to create world '" + worldName + "': " + ex.getMessage());
+								});
+							}
+						});
+					}))
+				.withSubcommand(new CommandAPICommand("deleteworld")
+					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.deleteworld"))
+					.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
+					.executes((sender, args) -> {
+						String worldName = (String)args[0];
+
+						MonumentaWorldManagementAPI.deleteWorld(worldName).whenComplete((unused, ex) -> {
+							if (ex != null) {
+								sender.sendMessage("Failed to delete world '" + worldName + "': " + ex.getMessage());
+							} else {
+								sender.sendMessage("Deleted world '" + worldName + "'");
+							}
+						});
 					}))
 			).register();
 

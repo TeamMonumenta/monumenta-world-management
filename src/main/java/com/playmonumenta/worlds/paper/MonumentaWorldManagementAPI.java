@@ -1,7 +1,15 @@
 package com.playmonumenta.worlds.paper;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
+import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.Bukkit;
 import org.bukkit.World;
@@ -80,6 +88,13 @@ public class MonumentaWorldManagementAPI {
 	}
 
 	/**
+	 * ensureWorldLoaded, but will use the config-specified template world if copying is needed.
+	 */
+	public static World ensureWorldLoaded(String worldName, boolean calledAsync, boolean copyTemplateIfNotExist) throws Exception {
+		return ensureWorldLoaded(worldName, calledAsync, copyTemplateIfNotExist, WorldManagementPlugin.getTemplateWorldName());
+	}
+
+	/**
 	 * Gets the specified world, loading and optionally creating it if needed.
 	 *
 	 * Will always return a non-null world, or throw an exception if the request is not possible
@@ -91,8 +106,10 @@ public class MonumentaWorldManagementAPI {
 	 * Note that this uses file I/O and so will be slow - recommend calling this only from an async thread
 	 *
 	 * Caller should specify calledAsync = false if called from the main game loop thread, or calledAsync = true if called async
+	 *
+	 * copyFromWorldName should be the name of the world folder to use as a template to copy if world creation is allowed and necessary to satisfy the request
 	 */
-	public static World ensureWorldLoaded(String worldName, boolean calledAsync, boolean copyTemplateIfNotExist) throws Exception {
+	public static World ensureWorldLoaded(String worldName, boolean calledAsync, boolean copyTemplateIfNotExist, String copyFromWorldName) throws Exception {
 		WorldManagementPlugin plugin = WorldManagementPlugin.getInstance();
 		if (plugin == null) {
 			throw new Exception("MonumentaWorldManagement plugin is not loaded");
@@ -120,7 +137,7 @@ public class MonumentaWorldManagementAPI {
 			}
 
 			//TODO: This needs to be a config option, or bundled with this plugin somehow
-			Process process = Runtime.getRuntime().exec("/automation/utility_code/copy_world.py" + " " + WorldManagementPlugin.getTemplateWorldName() + " " + worldName);
+			Process process = Runtime.getRuntime().exec("/automation/utility_code/copy_world.py" + " " + copyFromWorldName + " " + worldName);
 
 			int exitVal = process.waitFor();
 			if (exitVal != 0) {
@@ -171,5 +188,69 @@ public class MonumentaWorldManagementAPI {
 		if (!Bukkit.unloadWorld(world, true)) {
 			throw new Exception("Unloading world '" + worldName + "' failed, unknown reason");
 		}
+	}
+
+	/**
+	 * Deletes a world.
+	 *
+	 * Does most of its work on an async thread, and completes the future on the main thread when done.
+	 *
+	 * Checks that the world is actually a world (has a level.dat file), and will also
+	 * refuse to delete the folder if it contains more than one level of subfolder.
+	 *
+	 * Suggest using .whenComplete((unused, ex) -> your code) to do something on the main thread when done
+	 */
+	public static CompletableFuture<Void> deleteWorld(String worldName) {
+		CompletableFuture<Void> future = new CompletableFuture<>();
+		if (!isWorldAvailable(worldName)) {
+			future.completeExceptionally(new Exception("Can't delete world '" + worldName + "' which either doesn't exist or is not a world"));
+			return future;
+		}
+
+		World world = Bukkit.getWorld(worldName);
+		if (world != null) {
+			future.completeExceptionally(new Exception("Can't delete world '" + worldName + "' which is loaded"));
+			return future;
+		}
+
+		Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), () -> {
+			try {
+				// Make sure the folder's depth is appropriate for a world, and cancel if not so it doesn't delete something else
+				final int maxDepth = 2;
+				final Path rootPath = Paths.get(worldName);
+				final int rootPathDepth = rootPath.getNameCount();
+				boolean tooManyLevels = Files.walk(rootPath).anyMatch((e) -> e.getNameCount() - rootPathDepth > maxDepth);
+				if (tooManyLevels) {
+					throw new Exception("Can't delete world '" + worldName + "' which has folder depth > " + maxDepth);
+				}
+
+				// Delete all files recursively but do **not** follow symbolic links
+				Path directory = Paths.get(worldName);
+				Files.walkFileTree(directory, new SimpleFileVisitor<Path>() {
+				   @Override
+				   public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+					   Files.delete(file);
+					   return FileVisitResult.CONTINUE;
+				   }
+
+				   @Override
+				   public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+					   Files.delete(dir);
+					   return FileVisitResult.CONTINUE;
+				   }
+				});
+
+				getAvailableWorlds(); // Update the cache
+
+				Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
+					future.complete(null);
+				});
+			} catch (Exception ex) {
+				future.completeExceptionally(ex);
+				ex.printStackTrace();
+			}
+		});
+
+		return future;
 	}
 }
