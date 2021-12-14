@@ -74,13 +74,14 @@ public class ChangeLogLevelCommand {
 					.executes((sender, args) -> {
 						String worldName = (String)args[0];
 
-						try {
-							MonumentaWorldManagementAPI.unloadWorld(worldName);
-						} catch (Exception ex) {
-							CommandAPI.fail(ex.getMessage());
-						}
-
-						sender.sendMessage("Unloaded world: " + worldName);
+						sender.sendMessage("Started unloading world: " + worldName);
+						MonumentaWorldManagementAPI.unloadWorld(worldName).whenComplete((unused, ex) -> {
+							if (ex != null) {
+								sender.sendMessage("Failed to unload world '" + worldName + "': " + ex.getMessage());
+							} else {
+								sender.sendMessage("Unloaded world '" + worldName + "'");
+							}
+						});
 					}))
 				.withSubcommand(new CommandAPICommand("forceworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.forceworld"))

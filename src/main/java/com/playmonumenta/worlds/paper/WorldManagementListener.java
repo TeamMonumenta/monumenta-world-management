@@ -80,8 +80,16 @@ public class WorldManagementListener implements Listener {
 							Integer idleTime = mWorldIdleTimes.getOrDefault(world.getUID(), 0) + 200;
 							if (idleTime > WorldManagementPlugin.getUnloadInactiveWorldAfterTicks()) {
 								plugin.getLogger().info("Unloading world '" + world.getName() + "' which has had no players for " + idleTime + " ticks");
-								mWorldIdleTimes.remove(world.getUID());
-								Bukkit.unloadWorld(world, true);
+								MonumentaWorldManagementAPI.unloadWorld(world.getName()).whenComplete((unused, ex) -> {
+									if (ex != null) {
+										plugin.getLogger().warning("Failed to unload world '" + world.getName() + "': " + ex.getMessage());
+									} else {
+										mWorldIdleTimes.remove(world.getUID());
+										plugin.getLogger().info("Unloaded world " + world.getName());
+									}
+								});
+								// Even though it hasn't unloaded yet, reset its idle time so it won't attempt to unload constantly
+								mWorldIdleTimes.put(world.getUID(), 0);
 							} else {
 								mWorldIdleTimes.put(world.getUID(), idleTime);
 							}
