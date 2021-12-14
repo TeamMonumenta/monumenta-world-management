@@ -28,7 +28,7 @@ You can download the latest version of this plugin from [GitHub Packages](https:
         <dependency>
             <groupId>com.playmonumenta</groupId>
             <artifactId>worlds</artifactId>
-            <version>1.2</version>
+            <version>1.3</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
