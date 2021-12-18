@@ -14,11 +14,11 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.Plugin;
-import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 
 public class WorldManagementListener implements Listener {
 
-	private BukkitRunnable mRunnable = null;
+	private BukkitTask mTask = null;
 
 	protected WorldManagementListener(Plugin plugin) {
 		reloadConfig(plugin);
@@ -59,45 +59,41 @@ public class WorldManagementListener implements Listener {
 	}
 
 	protected void reloadConfig(Plugin plugin) {
-		if (mRunnable != null) {
-			mRunnable.cancel();
-			mRunnable = null;
+		if (mTask != null && !mTask.isCancelled()) {
+			mTask.cancel();
+			mTask = null;
 		}
 
 		if (WorldManagementPlugin.getUnloadInactiveWorldAfterTicks() > 0) {
-			mRunnable = new BukkitRunnable() {
-				Map<UUID, Integer> mWorldIdleTimes = new HashMap<>();
+			Map<UUID, Integer> worldIdleTimes = new HashMap<>();
 
-				@Override
-				public void run() {
-					List<World> worlds = Bukkit.getWorlds();
-					for (int i = 1; i < worlds.size(); i++) { // Ignore the primary world
-						World world = worlds.get(i);
+			mTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+				List<World> worlds = Bukkit.getWorlds();
+				for (int i = 1; i < worlds.size(); i++) { // Ignore the primary world
+					World world = worlds.get(i);
 
-						if (world.getPlayers().size() > 0) {
-							mWorldIdleTimes.put(world.getUID(), 0);
+					if (world.getPlayers().size() > 0) {
+						worldIdleTimes.put(world.getUID(), 0);
+					} else {
+						Integer idleTime = worldIdleTimes.getOrDefault(world.getUID(), 0) + 200;
+						if (idleTime > WorldManagementPlugin.getUnloadInactiveWorldAfterTicks()) {
+							plugin.getLogger().info("Unloading world '" + world.getName() + "' which has had no players for " + idleTime + " ticks");
+							MonumentaWorldManagementAPI.unloadWorld(world.getName()).whenComplete((unused, ex) -> {
+								if (ex != null) {
+									plugin.getLogger().warning("Failed to unload world '" + world.getName() + "': " + ex.getMessage());
+								} else {
+									worldIdleTimes.remove(world.getUID());
+									plugin.getLogger().info("Unloaded world " + world.getName());
+								}
+							});
+							// Even though it hasn't unloaded yet, reset its idle time so it won't attempt to unload constantly
+							worldIdleTimes.put(world.getUID(), 0);
 						} else {
-							Integer idleTime = mWorldIdleTimes.getOrDefault(world.getUID(), 0) + 200;
-							if (idleTime > WorldManagementPlugin.getUnloadInactiveWorldAfterTicks()) {
-								plugin.getLogger().info("Unloading world '" + world.getName() + "' which has had no players for " + idleTime + " ticks");
-								MonumentaWorldManagementAPI.unloadWorld(world.getName()).whenComplete((unused, ex) -> {
-									if (ex != null) {
-										plugin.getLogger().warning("Failed to unload world '" + world.getName() + "': " + ex.getMessage());
-									} else {
-										mWorldIdleTimes.remove(world.getUID());
-										plugin.getLogger().info("Unloaded world " + world.getName());
-									}
-								});
-								// Even though it hasn't unloaded yet, reset its idle time so it won't attempt to unload constantly
-								mWorldIdleTimes.put(world.getUID(), 0);
-							} else {
-								mWorldIdleTimes.put(world.getUID(), idleTime);
-							}
+							worldIdleTimes.put(world.getUID(), idleTime);
 						}
 					}
 				}
-			};
-			mRunnable.runTaskTimer(plugin, 200, 200);
+			}, 200, 200);
 		}
 	}
 }
