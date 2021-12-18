@@ -29,15 +29,19 @@ public class WorldManagementListener implements Listener {
 		Player player = event.getPlayer();
 
 		if (!WorldManagementPlugin.isInstanced()) {
-			// If not an instanced server, still try to load the player's last world & put them there
-			try {
-				World world = MonumentaWorldManagementAPI.ensureWorldLoaded(event.getLastSavedWorldName(), false, false);
-				event.setWorld(world);
-			} catch (Exception ex) {
-				String msg = "Failed to load the last world you were on (" + event.getLastSavedWorldName() + "): " + ex.getMessage();
-				player.sendMessage(msg);
-				WorldManagementPlugin.getInstance().getLogger().warning(msg);
-				ex.printStackTrace();
+			String lastSavedWorldName = event.getLastSavedWorldName();
+
+			if (lastSavedWorldName != null) {
+				// If not an instanced server, still try to load the player's last world & put them there
+				try {
+					World world = MonumentaWorldManagementAPI.ensureWorldLoaded(lastSavedWorldName, false, false);
+					event.setWorld(world);
+				} catch (Exception ex) {
+					String msg = "Failed to load the last world you were on (" + lastSavedWorldName + "): " + ex.getMessage();
+					player.sendMessage(msg);
+					WorldManagementPlugin.getInstance().getLogger().warning(msg);
+					ex.printStackTrace();
+				}
 			}
 			return;
 		}
