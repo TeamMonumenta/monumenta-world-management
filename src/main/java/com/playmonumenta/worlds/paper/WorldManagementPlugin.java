@@ -28,7 +28,7 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 	@Override
 	public void onLoad() {
-		ChangeLogLevelCommand.register(this);
+		WorldCommands.register(this);
 	}
 
 	@Override

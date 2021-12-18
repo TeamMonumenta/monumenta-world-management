@@ -1,6 +1,9 @@
 package com.playmonumenta.worlds.paper;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
@@ -8,6 +11,7 @@ import com.playmonumenta.redissync.MonumentaRedisSyncAPI;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -17,14 +21,19 @@ import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.CommandPermission;
 import dev.jorel.commandapi.arguments.EntitySelectorArgument;
 import dev.jorel.commandapi.arguments.EntitySelectorArgument.EntitySelector;
+import dev.jorel.commandapi.arguments.IntegerArgument;
+import dev.jorel.commandapi.arguments.LocationArgument;
+import dev.jorel.commandapi.arguments.LocationType;
 import dev.jorel.commandapi.arguments.StringArgument;
 import dev.jorel.commandapi.exceptions.WrapperCommandSyntaxException;
 
-public class ChangeLogLevelCommand {
+public class WorldCommands {
+	private static final Map<UUID, Integer> INITIAL_VIEW_DISTANCES = new HashMap<>();
+
 	public static void register(WorldManagementPlugin worldPlugin) {
 		new CommandAPICommand("monumenta")
-			.withSubcommand(new CommandAPICommand("worldManagement")
-				.withSubcommand(new CommandAPICommand("changeLogLevel")
+			.withSubcommand(new CommandAPICommand("worldmanagement")
+				.withSubcommand(new CommandAPICommand("changeloglevel")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.changeloglevel"))
 					.withSubcommand(new CommandAPICommand("INFO")
 						.executes((sender, args) -> {
@@ -42,6 +51,31 @@ public class ChangeLogLevelCommand {
 						.executes((sender, args) -> {
 							worldPlugin.setLogLevel(Level.FINEST);
 						})))
+				.withSubcommand(new CommandAPICommand("setviewdistance")
+					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.setviewdistance"))
+					.withArguments(new LocationArgument("location", LocationType.PRECISE_POSITION))
+					.withArguments(new IntegerArgument("value", -1, 32))
+					.executes((sender, args) -> {
+						World world = ((Location)args[0]).getWorld();
+						int distance = (Integer)args[1];
+
+						if (distance > 0) {
+							if (!INITIAL_VIEW_DISTANCES.containsKey(world.getUID())) {
+								INITIAL_VIEW_DISTANCES.put(world.getUID(), world.getViewDistance());
+							}
+
+							world.setViewDistance(distance);
+							sender.sendMessage("View distance for world '" + world.getName() + "' set to " + Integer.toString(distance));
+						} else {
+							Integer initial = INITIAL_VIEW_DISTANCES.get(world.getUID());
+							if (initial == null) {
+								sender.sendMessage("Original view distance for world '" + world.getName() + "' unchanged, currently " + Integer.toString(world.getViewDistance()));
+							} else {
+								world.setViewDistance(initial);
+								sender.sendMessage("View distance for world '" + world.getName() + "' reset to " + Integer.toString(initial));
+							}
+						}
+					}))
 				.withSubcommand(new CommandAPICommand("listworlds")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.listworlds"))
 					.executes((sender, args) -> {
@@ -164,7 +198,7 @@ public class ChangeLogLevelCommand {
 					}))
 			).register();
 
-		// Register a copy of "/monumenta worldManagement forceworld @s world" as "/w world" for convenience
+		// Register a copy of "/monumenta worldmanagement forceworld @s world" as "/w world" for convenience
 		new CommandAPICommand("world")
 			.withPermission(CommandPermission.fromString("monumenta.worldmanagement.forceworld"))
 			.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
