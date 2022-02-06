@@ -25,6 +25,10 @@ public class WorldManagementPlugin extends JavaPlugin {
 	private static boolean mAllowInstanceAutocreation = false;
 	private static int mUnloadInactiveWorldAfterTicks = 10 * 60 * 20;
 	private static String mInstanceObjective = "Instance";
+	private static @Nullable String mJoinInstanceCommand = null;
+	private static @Nullable String mRejoinInstanceCommand = null;
+	private static @Nullable String mNotifyWorldPermission = "monumenta.worldmanagement.worldnotify";
+	private static String mCopyWorldCommand = "cp -a";
 
 	private @Nullable WorldManagementListener mListener = null;
 
@@ -65,20 +69,51 @@ public class WorldManagementPlugin extends JavaPlugin {
 		YamlConfiguration config = YamlConfiguration.loadConfiguration(configFile);
 
 		String logLevel = config.getString("log-level", "INFO");
-		mTemplateWorldName = config.getString("template-world-name", mTemplateWorldName);
-		mBaseWorldName = config.getString("base-world-name", mBaseWorldName);
-		mIsInstanced = config.getBoolean("is-instanced", mIsInstanced);
-		mAllowInstanceAutocreation = config.getBoolean("allow-instance-autocreation", mAllowInstanceAutocreation);
-		mUnloadInactiveWorldAfterTicks = config.getInt("unload-inactive-world-after-ticks", mUnloadInactiveWorldAfterTicks);
-		mInstanceObjective = config.getString("instance-objective", mInstanceObjective);
-
-		/* Echo config */
 		try {
 			getLogger().setLevel(Level.parse(logLevel));
 			getLogger().info("log-level=" + logLevel);
 		} catch (Exception ex) {
 			getLogger().warning("log-level=" + logLevel + " is invalid - defaulting to INFO");
 		}
+
+		mTemplateWorldName = config.getString("template-world-name", mTemplateWorldName);
+		getLogger().info("template-world-name=" + mTemplateWorldName);
+
+		mBaseWorldName = config.getString("base-world-name", mBaseWorldName);
+		getLogger().info("base-world-name=" + mBaseWorldName);
+
+		mIsInstanced = config.getBoolean("is-instanced", mIsInstanced);
+		getLogger().info("is-instanced=" + mIsInstanced);
+
+		mAllowInstanceAutocreation = config.getBoolean("allow-instance-autocreation", mAllowInstanceAutocreation);
+		getLogger().info("allow-instance-autocreation=" + mAllowInstanceAutocreation);
+
+		mUnloadInactiveWorldAfterTicks = config.getInt("unload-inactive-world-after-ticks", mUnloadInactiveWorldAfterTicks);
+		getLogger().info("unload-inactive-world-after-ticks=" + mUnloadInactiveWorldAfterTicks);
+
+		mInstanceObjective = config.getString("instance-objective", mInstanceObjective);
+		getLogger().info("instance-objective=" + mInstanceObjective);
+
+		mJoinInstanceCommand = config.getString("join-instance-command", mJoinInstanceCommand);
+		if (mJoinInstanceCommand != null && (mJoinInstanceCommand.equals("null") || mJoinInstanceCommand.isEmpty())) {
+			mJoinInstanceCommand = null;
+		}
+		getLogger().info("join-instance-command=" + mJoinInstanceCommand == null ? "null" : mJoinInstanceCommand);
+
+		mRejoinInstanceCommand = config.getString("rejoin-instance-command", mRejoinInstanceCommand);
+		if (mRejoinInstanceCommand != null && (mRejoinInstanceCommand.equals("null") || mRejoinInstanceCommand.isEmpty())) {
+			mRejoinInstanceCommand = null;
+		}
+		getLogger().info("rejoin-instance-command=" + mRejoinInstanceCommand == null ? "null" : mRejoinInstanceCommand);
+
+		mNotifyWorldPermission = config.getString("notify-world-permission", mNotifyWorldPermission);
+		if (mNotifyWorldPermission != null && (mNotifyWorldPermission.equals("null") || mNotifyWorldPermission.isEmpty())) {
+			mNotifyWorldPermission = null;
+		}
+		getLogger().info("notify-world-permission=" + mNotifyWorldPermission == null ? "null" : mNotifyWorldPermission);
+
+		mCopyWorldCommand = config.getString("copy-world-command", mCopyWorldCommand);
+		getLogger().info("copy-world-command=" + mCopyWorldCommand);
 
 		if (mListener != null) {
 			mListener.reloadConfig(this);
@@ -107,6 +142,22 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 	public static String getInstanceObjective() {
 		return mInstanceObjective;
+	}
+
+	public static @Nullable String getJoinInstanceCommand() {
+		return mJoinInstanceCommand;
+	}
+
+	public static @Nullable String getRejoinInstanceCommand() {
+		return mRejoinInstanceCommand;
+	}
+
+	public static @Nullable String getNotifyWorldPermission() {
+		return mNotifyWorldPermission;
+	}
+
+	public static String getCopyWorldCommand() {
+		return mCopyWorldCommand;
 	}
 
 	@Override

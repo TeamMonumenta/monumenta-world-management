@@ -10,6 +10,7 @@ import javax.annotation.Nullable;
 import com.playmonumenta.redissync.event.PlayerJoinSetWorldEvent;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -45,22 +46,43 @@ public class WorldManagementListener implements Listener {
 					ex.printStackTrace();
 				}
 			}
-			return;
+		} else {
+			int score = ScoreboardUtils.getScoreboardValue(player, WorldManagementPlugin.getInstanceObjective()).orElse(0);
+			if (score <= 0) {
+				player.sendMessage(ChatColor.RED + "You joined an instanced world without an instance assigned to you. Unless you are an operator, this is probably a bug");
+			} else {
+				try {
+					World world = MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, false, WorldManagementPlugin.allowInstanceAutocreation());
+					event.setWorld(world);
+
+					if (!event.getWorld().getName().equals(event.getLastSavedWorldName())) {
+						// JOIN: The player is joining this world after having last been on a different world (or null)
+						if (WorldManagementPlugin.getJoinInstanceCommand() != null) {
+							Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
+								Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getJoinInstanceCommand());
+							}, 1);
+						}
+					} else {
+						// REJOIN: The player is joining this world after having most recently left this world
+						if (WorldManagementPlugin.getRejoinInstanceCommand() != null) {
+							Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
+								Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRejoinInstanceCommand());
+							}, 1);
+						}
+					}
+				} catch (Exception ex) {
+					String msg = "Failed to load your assigned world instance " + score + ": " + ex.getMessage();
+					player.sendMessage(msg);
+					WorldManagementPlugin.getInstance().getLogger().warning(msg);
+					ex.printStackTrace();
+				}
+			}
 		}
 
-		int score = ScoreboardUtils.getScoreboardValue(player, WorldManagementPlugin.getInstanceObjective()).orElse(0);
-		if (score <= 0) {
-			player.sendMessage("You joined an instanced world without an instance assigned to you. Unless you are an operator, this is probably a bug");
-		} else {
-			try {
-				World world = MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, false, WorldManagementPlugin.allowInstanceAutocreation());
-				event.setWorld(world);
-			} catch (Exception ex) {
-				String msg = "Failed to load your assigned world instance " + score + ": " + ex.getMessage();
-				player.sendMessage(msg);
-				WorldManagementPlugin.getInstance().getLogger().warning(msg);
-				ex.printStackTrace();
-			}
+		if (WorldManagementPlugin.getNotifyWorldPermission() != null && player.hasPermission(WorldManagementPlugin.getNotifyWorldPermission())) {
+			Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
+				player.sendMessage(ChatColor.GREEN + "Joined world " + event.getWorld().getName());
+			}, 1);
 		}
 	}
 

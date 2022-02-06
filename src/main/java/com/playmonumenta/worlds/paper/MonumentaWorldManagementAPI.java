@@ -139,8 +139,7 @@ public class MonumentaWorldManagementAPI {
 				throw new Exception("World '" + worldName + "' does not exist and copyTemplateIfNotExist is false");
 			}
 
-			//TODO: This needs to be a config option, or bundled with this plugin somehow
-			Process process = Runtime.getRuntime().exec("python3 /automation/utility_code/copy_world.py" + " " + copyFromWorldName + " " + worldName);
+			Process process = Runtime.getRuntime().exec(WorldManagementPlugin.getCopyWorldCommand() + " " + copyFromWorldName + " " + worldName);
 
 			int exitVal = process.waitFor();
 			if (exitVal != 0) {
