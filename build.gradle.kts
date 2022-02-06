@@ -43,6 +43,11 @@ repositories {
         url = uri("https://raw.githubusercontent.com/TeamMonumenta/monumenta-redis-sync/master/mvn-repo/")
     }
 
+    // NBT API, pulled in by CommandAPI
+    maven {
+        url = uri("https://repo.codemc.org/repository/maven-public/")
+    }
+
     maven {
         url = uri("https://repo.maven.apache.org/maven2/")
     }
