@@ -1,5 +1,0 @@
-name: MonumentaWorldManagement
-main: com.playmonumenta.worlds.bungee.WorldManagementBungeePlugin
-version: 0.0.1
-author: Combustible
-depends: [MonumentaNetworkRelay,MonumentaRedisSync]
