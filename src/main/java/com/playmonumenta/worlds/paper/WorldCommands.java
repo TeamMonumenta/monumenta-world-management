@@ -198,12 +198,27 @@ public class WorldCommands {
 					}))
 			).register();
 
-		// Register a copy of "/monumenta worldmanagement forceworld @s world" as "/w world" for convenience
+		// Register a copy of "/monumenta worldmanagement forceworld @s world" as "/world <world>" for convenience
 		new CommandAPICommand("world")
 			.withPermission(CommandPermission.fromString("monumenta.worldmanagement.forceworld"))
 			.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
 			.executesPlayer((player, args) -> {
 				forceWorld(player, player, (String)args[0]);
+			})
+			.register();
+
+		// Register a copy of "/monumenta worldmanagement listworlds" as "/worlds" for convenience
+		new CommandAPICommand("worlds")
+			.withPermission(CommandPermission.fromString("monumenta.worldmanagement.listworlds"))
+			.executes((sender, args) -> {
+				sender.sendMessage("Currently loaded worlds:");
+				for (World world : Bukkit.getWorlds()) {
+					List<String> listOfPlayerNames = world.getPlayers().stream().map((player) -> player.getName()).collect(Collectors.toList());
+					sender.sendMessage("  " + world.getName() + ": " + String.join(", ", listOfPlayerNames));
+				}
+				if (sender instanceof Player) {
+					sender.sendMessage("Current world: " + ChatColor.AQUA + ((Player)sender).getWorld().getName());
+				}
 			})
 			.register();
 	}
