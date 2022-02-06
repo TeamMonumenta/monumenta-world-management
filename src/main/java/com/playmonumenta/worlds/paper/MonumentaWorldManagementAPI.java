@@ -10,7 +10,6 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Stream;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
@@ -274,13 +273,9 @@ public class MonumentaWorldManagementAPI {
 				final int maxDepth = 2;
 				final Path rootPath = Paths.get(worldName);
 				final int rootPathDepth = rootPath.getNameCount();
-				try (Stream<Path> stream = Files.walk(rootPath)) {
-					boolean tooManyLevels = stream.anyMatch((e) -> e.getNameCount() - rootPathDepth > maxDepth);
-					if (tooManyLevels) {
-						throw new Exception("Can't delete world '" + worldName + "' which has folder depth > " + maxDepth);
-					}
-				} catch (Exception ex) {
-					throw ex;
+				boolean tooManyLevels = Files.walk(rootPath).anyMatch((e) -> e.getNameCount() - rootPathDepth > maxDepth);
+				if (tooManyLevels) {
+					throw new Exception("Can't delete world '" + worldName + "' which has folder depth > " + maxDepth);
 				}
 
 				// Delete all files recursively but do **not** follow symbolic links

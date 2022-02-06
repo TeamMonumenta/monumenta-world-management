@@ -20,21 +20,21 @@ public class CustomLogger extends Logger {
 
 	@Override
 	public void finest(String msg) {
-		if (mLevel.equals(Level.FINEST)) {
+		if (mLevel == Level.FINEST) {
 			mLogger.info(msg);
 		}
 	}
 
 	@Override
 	public void finer(String msg) {
-		if (mLevel.equals(Level.FINER) || mLevel.equals(Level.FINEST)) {
+		if (mLevel == Level.FINER || mLevel == Level.FINEST) {
 			mLogger.info(msg);
 		}
 	}
 
 	@Override
 	public void fine(String msg) {
-		if (mLevel.equals(Level.FINE) || mLevel.equals(Level.FINER) || mLevel.equals(Level.FINEST)) {
+		if (mLevel == Level.FINE || mLevel == Level.FINER || mLevel == Level.FINEST) {
 			mLogger.info(msg);
 		}
 	}
