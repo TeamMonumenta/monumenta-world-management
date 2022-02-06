@@ -7,6 +7,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.annotation.Nullable;
+
 import com.playmonumenta.worlds.common.CustomLogger;
 
 import org.bukkit.Bukkit;
@@ -14,9 +16,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class WorldManagementPlugin extends JavaPlugin {
-	private static WorldManagementPlugin INSTANCE = null;
+	private static @Nullable WorldManagementPlugin INSTANCE = null;
 
-	private static CustomLogger mLogger = null;
+	private static @Nullable CustomLogger mLogger = null;
 	private static String mTemplateWorldName = "template";
 	private static String mBaseWorldName = "world";
 	private static boolean mIsInstanced = false;
@@ -24,7 +26,7 @@ public class WorldManagementPlugin extends JavaPlugin {
 	private static int mUnloadInactiveWorldAfterTicks = 10 * 60 * 20;
 	private static String mInstanceObjective = "Instance";
 
-	private WorldManagementListener mListener = null;
+	private @Nullable WorldManagementListener mListener = null;
 
 	@Override
 	public void onLoad() {
@@ -125,6 +127,8 @@ public class WorldManagementPlugin extends JavaPlugin {
 		getLogger().setLevel(level);
 	}
 
+	/* If this ever returned null everything would explode anyway, no reason to add error handling around this */
+	@SuppressWarnings("NullAway")
 	protected static WorldManagementPlugin getInstance() {
 		return INSTANCE;
 	}
