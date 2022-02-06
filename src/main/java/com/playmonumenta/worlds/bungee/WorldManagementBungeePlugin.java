@@ -7,6 +7,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.annotation.Nullable;
+
 import com.playmonumenta.worlds.common.CustomLogger;
 
 import net.md_5.bungee.api.plugin.Plugin;
@@ -15,7 +17,7 @@ import net.md_5.bungee.config.ConfigurationProvider;
 import net.md_5.bungee.config.YamlConfiguration;
 
 public class WorldManagementBungeePlugin extends Plugin {
-	private CustomLogger mLogger = null;
+	private @Nullable CustomLogger mLogger = null;
 
 	@Override
 	public void onEnable() {

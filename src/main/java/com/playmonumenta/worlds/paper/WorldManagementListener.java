@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import com.playmonumenta.redissync.event.PlayerJoinSetWorldEvent;
 
 import org.bukkit.Bukkit;
@@ -18,13 +20,13 @@ import org.bukkit.scheduler.BukkitTask;
 
 public class WorldManagementListener implements Listener {
 
-	private BukkitTask mTask = null;
+	private @Nullable BukkitTask mTask = null;
 
 	protected WorldManagementListener(Plugin plugin) {
 		reloadConfig(plugin);
 	}
 
-	@EventHandler(priority = EventPriority.HIGHEST)
+	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
 	public void playerJoinSetWorldEvent(PlayerJoinSetWorldEvent event) {
 		Player player = event.getPlayer();
 
