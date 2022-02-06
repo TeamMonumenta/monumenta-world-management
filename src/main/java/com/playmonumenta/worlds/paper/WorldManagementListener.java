@@ -24,7 +24,7 @@ public class WorldManagementListener implements Listener {
 		reloadConfig(plugin);
 	}
 
-	@EventHandler(priority = EventPriority.HIGHEST)
+	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
 	public void playerJoinSetWorldEvent(PlayerJoinSetWorldEvent event) {
 		Player player = event.getPlayer();
 
