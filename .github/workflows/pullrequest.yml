@@ -8,11 +8,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Set up JDK 16
+    - name: Set up JDK 17
       uses: actions/setup-java@v2
       with:
         distribution: 'zulu' # See 'Supported distributions' for available options
-        java-version: '16'
+        java-version: '17'
 
     - name: Setup reviewdog
       uses: reviewdog/action-setup@v1
@@ -30,22 +30,24 @@ jobs:
         cache-name: cache-maven-dependencies
       with:
         # maven files are stored in `~/.m2/repository`
-        path: ~/.m2/repository
+        path: |
+          ~/.m2/repository
+          ~/.gradle/caches
+          ~/.gradle/wrapper
         # Create the key based on runner os, cache name, and a hash of all the pom.xml files
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pom.xml') }}
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-build-${{ env.cache-name }}-
+          ${{ runner.os }}-build-
+          ${{ runner.os }}-
 
     - name: Build and report style/pmd/warnings
       env:
         REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         set -o pipefail
-        ./compile.sh --batch-mode --no-snapshot-updates | tee compile.log
+        ./gradlew build --console=plain | tee compile.log
         set +o pipefail
         cat compile.log | grep '^\[WARNING\].*\.java' | reviewdog -efm="[WARNING] %f:[%l,%c] %m" -name="compiler-warnings" -reporter=github-pr-check
-        set -o pipefail
-
-        ./mvn_version_wrapper.sh checkstyle:checkstyle --batch-mode --no-snapshot-updates
-        cat target/checkstyle-result.xml | reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-check
-
-        ./mvn_version_wrapper.sh pmd:pmd --batch-mode --no-snapshot-updates
-        cat target/pmd.txt | reviewdog -efm="%f:%l:	%m" -name="pmd" -reporter=github-pr-check
+        cat build/reports/pmd/main.xml | reviewdog -efm='%+P<file name="%f">' -efm='%W<violation beginline="%l%.%#begincolumn="%c%.%#' -efm='%-C<%.%#' -efm='%+C%.%#' -efm='%-Q' -name="pmd" -reporter=github-pr-check
+        cat build/reports/checkstyle/main.xml | reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-check
