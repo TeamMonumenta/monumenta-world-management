@@ -28,3 +28,27 @@ instance-objective: Instance
 # Set to <= 0 to disable automatic unloading
 # The system that manages this checks world activity every 10s
 unload-inactive-world-after-ticks: 12000
+
+# Command to run on players when they join an instanced world for the first time (useful for instance autocreation)
+# This will be run via the console like: /execute as <player> at @s run <command>
+# Set to null to disable
+join-instance-command: null
+
+# Command to run on players when they re-join an instanced world after having been there before
+# This will be run via the console like: /execute as <player> at @s run <command>
+# Set to null to disable
+rejoin-instance-command: null
+
+# Notify players with this permission which world they are on when they join
+# Set to null to disable
+notify-world-permission: "monumenta.worldmanagement.worldnotify"
+
+# Command used to create worlds (by copying them).
+# Will be executed via the shell in the server directory like "command srcWorld destWorld"
+# Note that the default here (cp -a) will only work on Linux and Mac
+# If the world contains entities, those entities will have the same UUID as in the source world and they will conflict
+# This is normally fine as Spigot will assign them new UUIDs when the conflict is detected
+# The exception to this is if any entities are assigned scoreboard values, in which case they may be lost / behave strangely
+# Ideally this would be set to a tool that can copy the worlds and generate new UUIDs for entities
+#   For example use https://github.com/TeamMonumenta/monumenta-automation/blob/master/utility_code/copy_world.py
+copy-world-command: "cp -a"
