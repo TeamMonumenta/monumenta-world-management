@@ -79,7 +79,7 @@ public class MonumentaWorldManagementAPI {
 				 * This happens when the scheduled runTask() is able to run after the main thread is available again,
 				 * but at that point the results don't matter so nothing happens
 				 */
-				log.fine("Tried to complete world future '" + mName + "' but it was already completed.");
+				log.fine("ensureWorldLoaded tried to complete world future '" + mName + "' but it was already completed.");
 			} else {
 				mFuture.complete(mSupplier.get());
 				log.fine("ensureWorldLoaded completed LoadWorldTask for name=" + mName);
@@ -195,7 +195,7 @@ public class MonumentaWorldManagementAPI {
 
 		/* Note this may block the main thread! It's necessary though */
 		int lockFail = 0;
-		final int timeout = calledAsync ? 20000 : 600000; // 20s main thread, 10 minutes async
+		final int timeout = calledAsync ? 600000 : 20000; // 10 minutes async, 20s main thread
 		/* ----- TRY LOCK ----- */
 		ILoadWorldTask task;
 		while ((task = LOADING_WORLDS.putIfAbsent(worldName, DummyLoadWorldTask.PLACEHOLDER)) != null) {
@@ -217,6 +217,10 @@ public class MonumentaWorldManagementAPI {
 
 			Thread.sleep(10); // Sleep between lock checks
 			lockFail += 10;
+
+			if (!calledAsync && (lockFail % 1000 == 0)) {
+				logger.warning("main thread blocked waiting for world '" + worldName + "' to load for " + (lockFail / 1000) + " seconds");
+			}
 
 			if (lockFail > timeout) {
 				// Note lock was never acquired by this point
