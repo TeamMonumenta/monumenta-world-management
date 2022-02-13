@@ -27,69 +27,73 @@ import org.bukkit.WorldType;
 import org.bukkit.scheduler.BukkitRunnable;
 
 public class MonumentaWorldManagementAPI {
-
-	private static class LoadWorldTask {
-		private static final LoadWorldTask PLACEHOLDER = new LoadWorldTask(null, null, null);
-
-		/*
-		 * This is a class that contains a task (mSupplier) that needs to be run to load and return a world (mFuture)
-		 * Either all three fields are null (a placeholder task), or all three are non-null
-		 */
-		private final @Nullable String mName;
-		private final @Nullable Supplier<World> mSupplier;
-		private final @Nullable CompletableFuture<World> mFuture;
-
-		private LoadWorldTask(@Nullable String name, @Nullable Supplier<World> supplier, @Nullable CompletableFuture<World> future) {
-			mName = name;
-			mSupplier = supplier;
-			mFuture = future;
-		}
-
+	private interface ILoadWorldTask {
 		/**
 		 * Run the supplier now, and use that result to complete the future.
 		 *
 		 * This should only be called on the main thread!
 		 */
-		private void runNow() {
-			if (mName == null || mSupplier == null || mFuture == null) {
-				Logger log = WorldManagementPlugin.getInstance().getLogger();
-				log.warning("Attempted to run placeholder load world task!");
-				new Exception().printStackTrace();
-				return;
-			}
-
-			if (mFuture.isDone()) {
-				Logger log = WorldManagementPlugin.getInstance().getLogger();
-				log.warning("Tried to complete world future '" + mName + "' but it was already completed.");
-				log.warning("This is actually expected in some very rare corner cases and is only bad if the server crashes shortly afterwards.");
-				log.warning("If the server continues running, ignore the below stacktrace");
-				new Exception().printStackTrace();
-			} else {
-				mFuture.complete(mSupplier.get());
-			}
-		}
+		void runNow();
 
 		/**
 		 * Waits for the future to complete (BLOCKING!) and returns the result
 		 */
-		private @Nullable World get() throws Exception {
-			if (mName == null || mSupplier == null || mFuture == null) {
-				Logger log = WorldManagementPlugin.getInstance().getLogger();
-				log.warning("Attempted to get placeholder load world task!");
-				new Exception().printStackTrace();
-				return null;
-			}
+		@Nullable World get() throws Exception;
+	}
 
-			return mFuture.get();
+	private static class DummyLoadWorldTask implements ILoadWorldTask {
+		public static DummyLoadWorldTask PLACEHOLDER = new DummyLoadWorldTask();
+
+		@Override
+		public void runNow() {
+			// Nothing to do - this is a placeholder
 		}
 
-		private boolean isPlaceholder() {
-			return mName == null || mSupplier == null || mFuture == null;
+		@Override
+		public @Nullable World get() throws Exception {
+			throw new Exception("Attempted to .get() DummyLoadWorldTask!");
+		}
+	}
+
+	private static class LoadWorldTask implements ILoadWorldTask {
+		/*
+		 * This is a class that contains a task (mSupplier) that needs to be run to load and return a world (mFuture)
+		 */
+		private final String mName;
+		private final Supplier<World> mSupplier;
+		private final CompletableFuture<World> mFuture;
+
+		private LoadWorldTask(String name, Supplier<World> supplier, CompletableFuture<World> future) {
+			mName = name;
+			mSupplier = supplier;
+			mFuture = future;
+		}
+
+		@Override
+		public void runNow() {
+			Logger log = WorldManagementPlugin.getInstance().getLogger();
+			log.fine("ensureWorldLoaded running LoadWorldTask for name=" + mName);
+			if (mFuture.isDone()) {
+				/*
+				 * This is expected whenever a blocking main thread world loader completes an async LoadWorldTask
+				 * This happens when the scheduled runTask() is able to run after the main thread is available again,
+				 * but at that point the results don't matter so nothing happens
+				 */
+				log.fine("Tried to complete world future '" + mName + "' but it was already completed.");
+			} else {
+				mFuture.complete(mSupplier.get());
+				log.fine("ensureWorldLoaded completed LoadWorldTask for name=" + mName);
+			}
+		}
+
+		@Override
+		public @Nullable World get() throws Exception {
+			return mFuture.get();
 		}
 	}
 
 	private static String[] AVAILABLE_WORLDS_CACHE = new String[0];
-	private static Map<String, LoadWorldTask> LOADING_WORLDS = new ConcurrentHashMap<>();
+	private static Map<String, ILoadWorldTask> LOADING_WORLDS = new ConcurrentHashMap<>();
 
 	/**
 	 * Checks whether the named world exists and could be loaded, using the cache. Fast and suitable for main thread.
@@ -193,8 +197,8 @@ public class MonumentaWorldManagementAPI {
 		int lockFail = 0;
 		final int timeout = calledAsync ? 20000 : 600000; // 20s main thread, 10 minutes async
 		/* ----- TRY LOCK ----- */
-		LoadWorldTask task;
-		while ((task = LOADING_WORLDS.putIfAbsent(worldName, LoadWorldTask.PLACEHOLDER)) != null) {
+		ILoadWorldTask task;
+		while ((task = LOADING_WORLDS.putIfAbsent(worldName, DummyLoadWorldTask.PLACEHOLDER)) != null) {
 			logger.fine("ensureWorldLoaded lockfail: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " lockFail=" + lockFail);
 
 			// This key already exists (failed to lock)
@@ -208,10 +212,7 @@ public class MonumentaWorldManagementAPI {
 				 *
 				 * So - need to pull that task if it exists, cancel it (so it doesn't run twice), and then run it directly
 				 */
-				if (!task.isPlaceholder()) {
-					logger.fine("ensureWorldLoaded lockfail runRow(): worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " lockFail=" + lockFail);
-					task.runNow();
-				}
+				task.runNow();
 			}
 
 			Thread.sleep(10); // Sleep between lock checks
@@ -251,11 +252,9 @@ public class MonumentaWorldManagementAPI {
 			 * Update the lock to store this new task instead of the placeholder
 			 * Can do this directly since the lock is already held at this point
 			 */
-			LoadWorldTask oldTask = LOADING_WORLDS.put(worldName, loadTask);
+			ILoadWorldTask oldTask = LOADING_WORLDS.put(worldName, loadTask);
 			if (oldTask == null) {
 				logger.severe("Updated lock with new load world task but the old one was null. Definitely a bug!");
-			} else if (!oldTask.isPlaceholder()) {
-				logger.severe("Updated lock with new load world task but the old one was not a placeholder. Definitely a bug!");
 			}
 
 			/*
@@ -267,7 +266,7 @@ public class MonumentaWorldManagementAPI {
 			/*
 			 * Set the lock for this back to the placeholder task
 			 */
-			LOADING_WORLDS.put(worldName, LoadWorldTask.PLACEHOLDER);
+			LOADING_WORLDS.put(worldName, DummyLoadWorldTask.PLACEHOLDER);
 		} else {
 			newWorld = Bukkit.getWorld(worldName);
 		}
@@ -338,11 +337,9 @@ public class MonumentaWorldManagementAPI {
 			 * Update the lock to store this new task instead of the placeholder
 			 * Can do this directly since the lock is already held at this point
 			 */
-			LoadWorldTask oldTask = LOADING_WORLDS.put(worldName, createTask);
+			ILoadWorldTask oldTask = LOADING_WORLDS.put(worldName, createTask);
 			if (oldTask == null) {
 				logger.severe("Updated lock with new load world task but the old one was null. Definitely a bug!");
-			} else if (!oldTask.isPlaceholder()) {
-				logger.severe("Updated lock with new load world task but the old one was not a placeholder. Definitely a bug!");
 			}
 
 			/*
