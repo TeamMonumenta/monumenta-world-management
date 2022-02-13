@@ -9,8 +9,14 @@ import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
+import java.util.logging.Logger;
 import java.util.stream.Stream;
+
+import javax.annotation.Nullable;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
@@ -22,7 +28,68 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 public class MonumentaWorldManagementAPI {
 
+	private static class LoadWorldTask {
+		private static final LoadWorldTask PLACEHOLDER = new LoadWorldTask(null, null, null);
+
+		/*
+		 * This is a class that contains a task (mSupplier) that needs to be run to load and return a world (mFuture)
+		 * Either all three fields are null (a placeholder task), or all three are non-null
+		 */
+		private final @Nullable String mName;
+		private final @Nullable Supplier<World> mSupplier;
+		private final @Nullable CompletableFuture<World> mFuture;
+
+		private LoadWorldTask(@Nullable String name, @Nullable Supplier<World> supplier, @Nullable CompletableFuture<World> future) {
+			mName = name;
+			mSupplier = supplier;
+			mFuture = future;
+		}
+
+		/**
+		 * Run the supplier now, and use that result to complete the future.
+		 *
+		 * This should only be called on the main thread!
+		 */
+		private void runNow() {
+			if (mName == null || mSupplier == null || mFuture == null) {
+				Logger log = WorldManagementPlugin.getInstance().getLogger();
+				log.warning("Attempted to run placeholder load world task!");
+				new Exception().printStackTrace();
+				return;
+			}
+
+			if (mFuture.isDone()) {
+				Logger log = WorldManagementPlugin.getInstance().getLogger();
+				log.warning("Tried to complete world future '" + mName + "' but it was already completed.");
+				log.warning("This is actually expected in some very rare corner cases and is only bad if the server crashes shortly afterwards.");
+				log.warning("If the server continues running, ignore the below stacktrace");
+				new Exception().printStackTrace();
+			} else {
+				mFuture.complete(mSupplier.get());
+			}
+		}
+
+		/**
+		 * Waits for the future to complete (BLOCKING!) and returns the result
+		 */
+		private @Nullable World get() throws Exception {
+			if (mName == null || mSupplier == null || mFuture == null) {
+				Logger log = WorldManagementPlugin.getInstance().getLogger();
+				log.warning("Attempted to get placeholder load world task!");
+				new Exception().printStackTrace();
+				return null;
+			}
+
+			return mFuture.get();
+		}
+
+		private boolean isPlaceholder() {
+			return mName == null || mSupplier == null || mFuture == null;
+		}
+	}
+
 	private static String[] AVAILABLE_WORLDS_CACHE = new String[0];
+	private static Map<String, LoadWorldTask> LOADING_WORLDS = new ConcurrentHashMap<>();
 
 	/**
 	 * Checks whether the named world exists and could be loaded, using the cache. Fast and suitable for main thread.
@@ -111,31 +178,118 @@ public class MonumentaWorldManagementAPI {
 	 * Caller should specify calledAsync = false if called from the main game loop thread, or calledAsync = true if called async
 	 *
 	 * copyFromWorldName should be the name of the world folder to use as a template to copy if world creation is allowed and necessary to satisfy the request
+	 *
+	 * XXX WARNING: The locking for this function is complex - take care making even small changes to control flow
 	 */
 	public static World ensureWorldLoaded(String worldName, boolean calledAsync, boolean copyTemplateIfNotExist, String copyFromWorldName) throws Exception {
 		WorldManagementPlugin plugin = WorldManagementPlugin.getInstance();
 		if (plugin == null) {
 			throw new Exception("MonumentaWorldManagement plugin is not loaded");
 		}
+		Logger logger = plugin.getLogger();
+		logger.fine("ensureWorldLoaded enter: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName);
+
+		/* Note this may block the main thread! It's necessary though */
+		int lockFail = 0;
+		final int timeout = calledAsync ? 20000 : 600000; // 20s main thread, 10 minutes async
+		/* ----- TRY LOCK ----- */
+		LoadWorldTask task;
+		while ((task = LOADING_WORLDS.putIfAbsent(worldName, LoadWorldTask.PLACEHOLDER)) != null) {
+			logger.fine("ensureWorldLoaded lockfail: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " lockFail=" + lockFail);
+
+			// This key already exists (failed to lock)
+			if (!calledAsync) {
+				/*
+				 * If this is on the main thread, then there's a small possibility that an async thread is holding this lock
+				 * and is waiting on a call on the main thread to complete loading the world so it can unlock.
+				 *
+				 * Problem is that if this is also already on the main thread, there's no way for that task to get executed
+				 * (the main thread is stuck in this loop instead, by design).
+				 *
+				 * So - need to pull that task if it exists, cancel it (so it doesn't run twice), and then run it directly
+				 */
+				if (!task.isPlaceholder()) {
+					logger.fine("ensureWorldLoaded lockfail runRow(): worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " lockFail=" + lockFail);
+					task.runNow();
+				}
+			}
+
+			Thread.sleep(10); // Sleep between lock checks
+			lockFail += 10;
+
+			if (lockFail > timeout) {
+				// Note lock was never acquired by this point
+				// Need some kind of timeout to prevent the server from crashing due to this becoming an infinite loop
+				throw new Exception("Failed to lock world '" + worldName + "' after retrying for " + (timeout / 1000) + "s");
+			}
+		}
+
+		logger.fine("ensureWorldLoaded locked: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " lockFail=" + lockFail);
+
+		/* ----- LOCK'ed after this point ----- */
 
 		/* Try to get existing world first */
 		World newWorld = null;
 		if (calledAsync) {
-			newWorld = Bukkit.getScheduler().callSyncMethod(WorldManagementPlugin.getInstance(), () -> Bukkit.getWorld(worldName)).get();
+			// Create a new task that will return an existing world if it exists
+			LoadWorldTask loadTask = new LoadWorldTask(worldName, () -> Bukkit.getWorld(worldName), new CompletableFuture<>());
+
+			/*
+			 * Schedule a task to run on the main thread to complete the future (by getting an existing world)
+			 * In the event that a main thread caller is already waiting on this result above, it will complete
+			 * the future, and then when the task finally runs, it won't have anything to do (which is fine).
+			 *
+			 * This prevents a possible deadlock when needing to run something on the main thread here but the
+			 * main thread is already in this function waiting for the result (meaning no tasks can be processed)
+			 */
+			Bukkit.getScheduler().runTask(plugin, () -> {
+				logger.fine("ensureWorldLoaded getWorld runNow(): worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName);
+				loadTask.runNow();
+			});
+
+			/*
+			 * Update the lock to store this new task instead of the placeholder
+			 * Can do this directly since the lock is already held at this point
+			 */
+			LoadWorldTask oldTask = LOADING_WORLDS.put(worldName, loadTask);
+			if (oldTask == null) {
+				logger.severe("Updated lock with new load world task but the old one was null. Definitely a bug!");
+			} else if (!oldTask.isPlaceholder()) {
+				logger.severe("Updated lock with new load world task but the old one was not a placeholder. Definitely a bug!");
+			}
+
+			/*
+			 * Block and wait for the task to complete. This will either get completed by the scheduled task here,
+			 * or another main-thread caller of this function requesting the same world
+			 */
+			newWorld = loadTask.get();
+
+			/*
+			 * Set the lock for this back to the placeholder task
+			 */
+			LOADING_WORLDS.put(worldName, LoadWorldTask.PLACEHOLDER);
 		} else {
 			newWorld = Bukkit.getWorld(worldName);
 		}
 		if (newWorld != null) {
+			/* +++++ UNLOCK +++++ */
+			LOADING_WORLDS.remove(worldName);
+			logger.fine("ensureWorldLoaded found existing unlocked: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName);
 			return newWorld;
 		}
+
+		logger.fine("ensureWorldLoaded world not loaded: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName);
 
 		//TODO Check redis to make sure world isn't loaded or created elsewhere
 
 		/* Copy world if it doesn't exist */
 		File worldFolder = new File(worldName);
-		if (!worldFolder.isDirectory()) {
+		if (worldFolder.isDirectory()) {
+			logger.fine("ensureWorldLoaded folder exists: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName);
+		} else {
 			/* Not allowed to create so return null */
 			if (!copyTemplateIfNotExist) {
+				LOADING_WORLDS.remove(worldName); /* +++++ UNLOCK +++++ */
 				throw new Exception("World '" + worldName + "' does not exist and copyTemplateIfNotExist is false");
 			}
 
@@ -144,7 +298,8 @@ public class MonumentaWorldManagementAPI {
 			int exitVal = process.waitFor();
 			if (exitVal != 0) {
 				String msg = "Failed to copy world '" + "template" + "' to '" + worldName + "': " + exitVal;
-				plugin.getLogger().severe(msg);
+				logger.severe(msg);
+				LOADING_WORLDS.remove(worldName); /* +++++ UNLOCK +++++ */
 				throw new Exception(msg);
 			}
 
@@ -158,17 +313,56 @@ public class MonumentaWorldManagementAPI {
 				AVAILABLE_WORLDS_CACHE[AVAILABLE_WORLDS_CACHE.length - 1] = worldName;
 			}
 
-			plugin.getLogger().fine("Created new world instance '" + worldName + "'");
+			logger.fine("ensureWorldLoaded created new: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName);
 		}
 
-		plugin.getLogger().fine("Loaded world '" + worldName + "'");
 		if (calledAsync) {
-			return Bukkit.getScheduler().callSyncMethod(WorldManagementPlugin.getInstance(), () ->
-				new WorldCreator(worldName).type(WorldType.NORMAL).generateStructures(false).environment(Environment.NORMAL).createWorld()
-			).get();
+			// Create a new task that will return an existing world if it exists
+			Supplier<World> supplier = () -> new WorldCreator(worldName).type(WorldType.NORMAL).generateStructures(false).environment(Environment.NORMAL).createWorld();
+			LoadWorldTask createTask = new LoadWorldTask(worldName, supplier, new CompletableFuture<>());
+
+			/*
+			 * Schedule a task to run on the main thread to complete the future (by getting an existing world)
+			 * In the event that a main thread caller is already waiting on this result above, it will complete
+			 * the future, and then when the task finally runs, it won't have anything to do (which is fine).
+			 *
+			 * This prevents a possible deadlock when needing to run something on the main thread here but the
+			 * main thread is already in this function waiting for the result (meaning no tasks can be processed)
+			 */
+			Bukkit.getScheduler().runTask(plugin, () -> {
+				logger.fine("ensureWorldLoaded createWorld runNow(): worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName);
+				createTask.runNow();
+			});
+
+			/*
+			 * Update the lock to store this new task instead of the placeholder
+			 * Can do this directly since the lock is already held at this point
+			 */
+			LoadWorldTask oldTask = LOADING_WORLDS.put(worldName, createTask);
+			if (oldTask == null) {
+				logger.severe("Updated lock with new load world task but the old one was null. Definitely a bug!");
+			} else if (!oldTask.isPlaceholder()) {
+				logger.severe("Updated lock with new load world task but the old one was not a placeholder. Definitely a bug!");
+			}
+
+			/*
+			 * Block and wait for the task to complete. This will either get completed by the scheduled task here,
+			 * or another main-thread caller of this function requesting the same world
+			 */
+			logger.fine("ensureWorldLoaded async loadworld .get(): worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName);
+			newWorld = createTask.get();
 		} else {
-			return new WorldCreator(worldName).type(WorldType.NORMAL).generateStructures(false).environment(Environment.NORMAL).createWorld();
+			logger.fine("ensureWorldLoaded sync loadworld: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName);
+			newWorld = new WorldCreator(worldName).type(WorldType.NORMAL).generateStructures(false).environment(Environment.NORMAL).createWorld();
 		}
+		logger.fine("ensureWorldLoaded loaded world: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName);
+
+		LOADING_WORLDS.remove(worldName); /* +++++ UNLOCK +++++ */
+
+		if (newWorld == null) {
+			throw new Exception("Failed to create world '" + worldName + "' - world is somehow null after creating which should never happen");
+		}
+		return newWorld;
 	}
 
 	public static CompletableFuture<Void> unloadWorld(String worldName) {
