@@ -4,9 +4,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Logger;
 
 import javax.annotation.Nullable;
 
+import com.playmonumenta.redissync.MonumentaRedisSyncAPI;
 import com.playmonumenta.redissync.event.PlayerJoinSetWorldEvent;
 
 import org.bukkit.Bukkit;
@@ -21,7 +23,8 @@ import org.bukkit.scheduler.BukkitTask;
 
 public class WorldManagementListener implements Listener {
 
-	private @Nullable BukkitTask mTask = null;
+	private @Nullable BukkitTask mUnloadTask = null;
+	private int mHighestSeenInstance = 0;
 
 	protected WorldManagementListener(Plugin plugin) {
 		reloadConfig(plugin);
@@ -55,6 +58,11 @@ public class WorldManagementListener implements Listener {
 					World world = MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, false, WorldManagementPlugin.allowInstanceAutocreation());
 					event.setWorld(world);
 
+					if (score > mHighestSeenInstance) {
+						mHighestSeenInstance = score;
+						refreshPregeneration(WorldManagementPlugin.getInstance(), WorldManagementPlugin.getInstance().getLogger(), 5 * 20); // 5s delay
+					}
+
 					if (!event.getWorld().getName().equals(event.getLastSavedWorldName())) {
 						// JOIN: The player is joining this world after having last been on a different world (or null)
 						if (WorldManagementPlugin.getJoinInstanceCommand() != null) {
@@ -87,15 +95,15 @@ public class WorldManagementListener implements Listener {
 	}
 
 	protected void reloadConfig(Plugin plugin) {
-		if (mTask != null && !mTask.isCancelled()) {
-			mTask.cancel();
-			mTask = null;
+		if (mUnloadTask != null && !mUnloadTask.isCancelled()) {
+			mUnloadTask.cancel();
+			mUnloadTask = null;
 		}
 
 		if (WorldManagementPlugin.getUnloadInactiveWorldAfterTicks() > 0) {
 			Map<UUID, Integer> worldIdleTimes = new HashMap<>();
 
-			mTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+			mUnloadTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
 				List<World> worlds = Bukkit.getWorlds();
 				for (int i = 1; i < worlds.size(); i++) { // Ignore the primary world
 					World world = worlds.get(i);
@@ -122,6 +130,84 @@ public class WorldManagementListener implements Listener {
 					}
 				}
 			}, 200, 200);
+		}
+
+		if (WorldManagementPlugin.getPregeneratedInstances() > 0) {
+			/* Instance pregeneration was set in config */
+			String rboardName = WorldManagementPlugin.getPregeneratedRBoardName();
+			String rboardKey = WorldManagementPlugin.getPregeneratedRBoardKey();
+			Logger logger = plugin.getLogger();
+
+			if (rboardName != null && rboardKey != null) {
+				Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+					try {
+						Map<String, String> result = MonumentaRedisSyncAPI.rboardGet(rboardName, rboardKey).get();
+						String score = result.get(rboardKey);
+						if (score == null) {
+							logger.warning("Tried to get rboard value " + rboardName + " -> " + rboardKey + " but got null");
+							logger.warning("Defaulting to " + mHighestSeenInstance + ", which is probably not what you want");
+						} else {
+							int rboard = Integer.parseInt(score);
+							if (rboard >= mHighestSeenInstance) {
+								mHighestSeenInstance = rboard;
+								logger.info("Pregeneration enabled: Setting highest seen instance to " + mHighestSeenInstance + " from RBoard");
+							} else {
+								logger.info("Pregeneration enabled: Leaving highest seen instance at " + mHighestSeenInstance + " which is already higher than value " + rboard + " from RBoard");
+							}
+						}
+					} catch (Exception ex) {
+						logger.severe("Caught exception while fetching highest seen instance: " + ex.getMessage());
+						ex.printStackTrace();
+					}
+					refreshPregeneration(plugin, logger, 15 * 20); // 15s delay
+				});
+			} else {
+				refreshPregeneration(plugin, logger, 15 * 20); // 15s delay
+			}
+		}
+	}
+
+	/**
+	 * Starts pregeneration of instances that are missing relative to mHighestSeenInstance
+	 *
+	 * Can run this sync or async.
+	 */
+	void refreshPregeneration(Plugin plugin, Logger logger, int baseDelayTicks) {
+		if (WorldManagementPlugin.getPregeneratedInstances() > 0) {
+			logger.info("Refreshing instance pregeneration: Highest seen instance: " + mHighestSeenInstance);
+
+			Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+				MonumentaWorldManagementAPI.getAvailableWorlds(); // Updates the cache
+
+				for (int i = 0; i < WorldManagementPlugin.getPregeneratedInstances(); i++) {
+					int instance = mHighestSeenInstance + 1 + i;
+					String name = WorldManagementPlugin.getBaseWorldName() + instance;
+
+					pregenerate(plugin, logger, name, baseDelayTicks + 15*20*i); // Run tasks 15s apart, just to avoid overloading the startup process
+				}
+			});
+		}
+	}
+
+	/**
+	 * Causes a world to be pregenerated if it doesn't exist.
+	 *
+	 * Can run this sync or async. Will test the cache before unnecessarily scheduling world generation
+	 */
+	void pregenerate(Plugin plugin, Logger logger, String name, int delayTicks) {
+		logger.fine("Requested pregeneration of instance " + name);
+		if (!MonumentaWorldManagementAPI.isCachedWorldAvailable(name)) {
+			Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> {
+				logger.info("Starting pregeneration of instance " + name);
+				try {
+					MonumentaWorldManagementAPI.ensureWorldLoaded(name, true, true);
+					logger.info("Instance " + name + " pregeneration complete");
+				} catch (Exception ex) {
+					logger.severe("Failed to pregenerate world " + name + ": " + ex.getMessage());
+					ex.printStackTrace();
+				}
+			}, delayTicks);
+			logger.fine("Scheduled pregeneration of instance " + name + " which will start in " + delayTicks + " ticks");
 		}
 	}
 }

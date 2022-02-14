@@ -23,6 +23,9 @@ public class WorldManagementPlugin extends JavaPlugin {
 	private static String mBaseWorldName = "world";
 	private static boolean mIsInstanced = false;
 	private static boolean mAllowInstanceAutocreation = false;
+	private static int mPregeneratedInstances = 0;
+	private static @Nullable String mPregeneratedRBoardName = null;
+	private static @Nullable String mPregeneratedRBoardKey = null;
 	private static int mUnloadInactiveWorldAfterTicks = 10 * 60 * 20;
 	private static String mInstanceObjective = "Instance";
 	private static @Nullable String mJoinInstanceCommand = null;
@@ -71,53 +74,77 @@ public class WorldManagementPlugin extends JavaPlugin {
 		String logLevel = config.getString("log-level", "INFO");
 		try {
 			getLogger().setLevel(Level.parse(logLevel));
-			getLogger().info("log-level=" + logLevel);
+			printConfig("log-level", logLevel);
 		} catch (Exception ex) {
 			getLogger().warning("log-level=" + logLevel + " is invalid - defaulting to INFO");
 		}
 
 		mTemplateWorldName = config.getString("template-world-name", mTemplateWorldName);
-		getLogger().info("template-world-name=" + mTemplateWorldName);
+		printConfig("template-world-name", mTemplateWorldName);
 
 		mBaseWorldName = config.getString("base-world-name", mBaseWorldName);
-		getLogger().info("base-world-name=" + mBaseWorldName);
+		printConfig("base-world-name", mBaseWorldName);
 
 		mIsInstanced = config.getBoolean("is-instanced", mIsInstanced);
-		getLogger().info("is-instanced=" + mIsInstanced);
+		printConfig("is-instanced", mIsInstanced);
 
 		mAllowInstanceAutocreation = config.getBoolean("allow-instance-autocreation", mAllowInstanceAutocreation);
-		getLogger().info("allow-instance-autocreation=" + mAllowInstanceAutocreation);
+		printConfig("allow-instance-autocreation", mAllowInstanceAutocreation);
+
+		mPregeneratedInstances = config.getInt("pregenerated-instances", mPregeneratedInstances);
+		printConfig("pregenerated-instances", mPregeneratedInstances);
+		mPregeneratedRBoardName = config.getString("pregenerated-rboard-name", mPregeneratedRBoardName);
+		if (mPregeneratedRBoardName != null && (mPregeneratedRBoardName.equals("null") || mPregeneratedRBoardName.isEmpty())) {
+			mPregeneratedRBoardName = null;
+		}
+		mPregeneratedRBoardKey = config.getString("pregenerated-rboard-key", mPregeneratedRBoardKey);
+		if (mPregeneratedRBoardKey != null && (mPregeneratedRBoardKey.equals("null") || mPregeneratedRBoardKey.isEmpty())) {
+			mPregeneratedRBoardKey = null;
+		}
+		if (!mIsInstanced) {
+			mPregeneratedInstances = 0;
+		}
+		if (mPregeneratedRBoardName == null || mPregeneratedRBoardKey == null || mPregeneratedInstances == 0) {
+			mPregeneratedRBoardName = null;
+			mPregeneratedRBoardKey = null;
+		}
+		printConfig("pregenerated-rboard-name", mPregeneratedRBoardName);
+		printConfig("pregenerated-rboard-key", mPregeneratedRBoardKey);
 
 		mUnloadInactiveWorldAfterTicks = config.getInt("unload-inactive-world-after-ticks", mUnloadInactiveWorldAfterTicks);
-		getLogger().info("unload-inactive-world-after-ticks=" + mUnloadInactiveWorldAfterTicks);
+		printConfig("unload-inactive-world-after-ticks", mUnloadInactiveWorldAfterTicks);
 
 		mInstanceObjective = config.getString("instance-objective", mInstanceObjective);
-		getLogger().info("instance-objective=" + mInstanceObjective);
+		printConfig("instance-objective", mInstanceObjective);
 
 		mJoinInstanceCommand = config.getString("join-instance-command", mJoinInstanceCommand);
 		if (mJoinInstanceCommand != null && (mJoinInstanceCommand.equals("null") || mJoinInstanceCommand.isEmpty())) {
 			mJoinInstanceCommand = null;
 		}
-		getLogger().info("join-instance-command=" + mJoinInstanceCommand == null ? "null" : mJoinInstanceCommand);
+		printConfig("join-instance-command", mJoinInstanceCommand);
 
 		mRejoinInstanceCommand = config.getString("rejoin-instance-command", mRejoinInstanceCommand);
 		if (mRejoinInstanceCommand != null && (mRejoinInstanceCommand.equals("null") || mRejoinInstanceCommand.isEmpty())) {
 			mRejoinInstanceCommand = null;
 		}
-		getLogger().info("rejoin-instance-command=" + mRejoinInstanceCommand == null ? "null" : mRejoinInstanceCommand);
+		printConfig("rejoin-instance-command", mRejoinInstanceCommand);
 
 		mNotifyWorldPermission = config.getString("notify-world-permission", mNotifyWorldPermission);
 		if (mNotifyWorldPermission != null && (mNotifyWorldPermission.equals("null") || mNotifyWorldPermission.isEmpty())) {
 			mNotifyWorldPermission = null;
 		}
-		getLogger().info("notify-world-permission=" + mNotifyWorldPermission == null ? "null" : mNotifyWorldPermission);
+		printConfig("notify-world-permission", mNotifyWorldPermission);
 
 		mCopyWorldCommand = config.getString("copy-world-command", mCopyWorldCommand);
-		getLogger().info("copy-world-command=" + mCopyWorldCommand);
+		printConfig("copy-world-command", mCopyWorldCommand);
 
 		if (mListener != null) {
 			mListener.reloadConfig(this);
 		}
+	}
+
+	private <T> void printConfig(String configKey, @Nullable T value) {
+		getLogger().info(configKey + "=" + (value == null ? "null" : value));
 	}
 
 	public static String getTemplateWorldName() {
@@ -134,6 +161,18 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 	public static boolean allowInstanceAutocreation() {
 		return mAllowInstanceAutocreation;
+	}
+
+	public static int getPregeneratedInstances() {
+		return mPregeneratedInstances;
+	}
+
+	public static @Nullable String getPregeneratedRBoardName() {
+		return mPregeneratedRBoardName;
+	}
+
+	public static @Nullable String getPregeneratedRBoardKey() {
+		return mPregeneratedRBoardKey;
 	}
 
 	public static int getUnloadInactiveWorldAfterTicks() {

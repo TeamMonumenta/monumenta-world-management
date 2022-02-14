@@ -320,7 +320,7 @@ public class MonumentaWorldManagementAPI {
 		}
 
 		if (calledAsync) {
-			// Create a new task that will return an existing world if it exists
+			// Create a new task that will load a new world from the disk
 			Supplier<World> supplier = () -> new WorldCreator(worldName).type(WorldType.NORMAL).generateStructures(false).environment(Environment.NORMAL).createWorld();
 			LoadWorldTask createTask = new LoadWorldTask(worldName, supplier, new CompletableFuture<>());
 

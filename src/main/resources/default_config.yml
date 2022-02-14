@@ -19,6 +19,19 @@ is-instanced: false
 # a new world will be copied & loaded automatically from the template world
 allow-instance-autocreation: true
 
+# Number of instances to pre-generate so they are available when a player joins
+# When the server starts up for the first time with no existing instances, this many instances will be generated immediately as async tasks
+# After that, when a player joins within the last # instances, more instances will be generated to maintain this number of never-joined instances afterwards
+# Highly recommended to use this to significantly decrease world loading wait times to get new instances
+# Set to 0 to disable
+pregenerated-instances: 0
+
+# MonumentaRedisSync rboard name to use to determine what the latest used instance is for pregeneration
+# If either is null, pregeneration will assume instances start at 0
+# the rboard is a hashmap - so name of the hashmap, then the key in that hashmap with the integer value of the last used instance
+pregenerated-rboard-name: null
+pregenerated-rboard-key: null
+
 # The scoreboard objective used to determine what world instance a player should be sent to
 instance-objective: Instance
 
