@@ -57,6 +57,13 @@ public class WorldManagementListener implements Listener {
 
 				/* Modify the event so the player respawns on this same world at spawn */
 				event.setRespawnLocation(world.getSpawnLocation());
+
+				// RESPAWN: The player is respawning in this world after having (probably) died there
+				if (WorldManagementPlugin.getRespawnInstanceCommand() != null) {
+					Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
+						Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRespawnInstanceCommand());
+					}, 1);
+				}
 			} catch (Exception ex) {
 				String msg = "Failed to load your assigned world instance " + score + ": " + ex.getMessage();
 				player.sendMessage(msg);

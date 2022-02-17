@@ -52,6 +52,11 @@ join-instance-command: null
 # Set to null to disable
 rejoin-instance-command: null
 
+# Command to run on players when they respawn in instanced world after dying
+# This will be run via the console like: /execute as <player> at @s run <command>
+# Set to null to disable
+respawn-instance-command: null
+
 # Notify players with this permission which world they are on when they join
 # Set to null to disable
 notify-world-permission: "monumenta.worldmanagement.worldnotify"

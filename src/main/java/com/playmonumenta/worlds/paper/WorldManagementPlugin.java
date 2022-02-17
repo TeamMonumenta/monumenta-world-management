@@ -30,6 +30,7 @@ public class WorldManagementPlugin extends JavaPlugin {
 	private static String mInstanceObjective = "Instance";
 	private static @Nullable String mJoinInstanceCommand = null;
 	private static @Nullable String mRejoinInstanceCommand = null;
+	private static @Nullable String mRespawnInstanceCommand = null;
 	private static @Nullable String mNotifyWorldPermission = "monumenta.worldmanagement.worldnotify";
 	private static String mCopyWorldCommand = "cp -a";
 
@@ -129,6 +130,12 @@ public class WorldManagementPlugin extends JavaPlugin {
 		}
 		printConfig("rejoin-instance-command", mRejoinInstanceCommand);
 
+		mRespawnInstanceCommand = config.getString("respawn-instance-command", mRespawnInstanceCommand);
+		if (mRespawnInstanceCommand != null && (mRespawnInstanceCommand.equals("null") || mRespawnInstanceCommand.isEmpty())) {
+			mRespawnInstanceCommand = null;
+		}
+		printConfig("respawn-instance-command", mRespawnInstanceCommand);
+
 		mNotifyWorldPermission = config.getString("notify-world-permission", mNotifyWorldPermission);
 		if (mNotifyWorldPermission != null && (mNotifyWorldPermission.equals("null") || mNotifyWorldPermission.isEmpty())) {
 			mNotifyWorldPermission = null;
@@ -189,6 +196,10 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 	public static @Nullable String getRejoinInstanceCommand() {
 		return mRejoinInstanceCommand;
+	}
+
+	public static @Nullable String getRespawnInstanceCommand() {
+		return mRespawnInstanceCommand;
 	}
 
 	public static @Nullable String getNotifyWorldPermission() {
