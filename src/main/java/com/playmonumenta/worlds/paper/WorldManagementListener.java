@@ -18,6 +18,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -28,6 +29,41 @@ public class WorldManagementListener implements Listener {
 
 	protected WorldManagementListener(Plugin plugin) {
 		reloadConfig(plugin);
+	}
+
+	/*
+	 * Fix player respawn locations being in the overworld when actually instanced
+	 */
+	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+	public void playerRespawnEvent(PlayerRespawnEvent event) {
+		if (!WorldManagementPlugin.isInstanced()) {
+			/* Not instanced, don't modify respawn location */
+			return;
+		}
+
+		Player player = event.getPlayer();
+		int score = ScoreboardUtils.getScoreboardValue(player, WorldManagementPlugin.getInstanceObjective()).orElse(0);
+		if (score <= 0) {
+			player.sendMessage(ChatColor.RED + "You respawned on an instanced world without an instance assigned to you. Unless you are an operator, this is probably a bug");
+		} else {
+			try {
+				/* World should already be loaded, just need to grab it */
+				World world = MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, false, WorldManagementPlugin.allowInstanceAutocreation());
+
+				if (event.getRespawnLocation().getWorld().equals(world)) {
+					/* Already respawning on this world, don't need to change location */
+					return;
+				}
+
+				/* Modify the event so the player respawns on this same world at spawn */
+				event.setRespawnLocation(world.getSpawnLocation());
+			} catch (Exception ex) {
+				String msg = "Failed to load your assigned world instance " + score + ": " + ex.getMessage();
+				player.sendMessage(msg);
+				WorldManagementPlugin.getInstance().getLogger().warning(msg);
+				ex.printStackTrace();
+			}
+		}
 	}
 
 	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
