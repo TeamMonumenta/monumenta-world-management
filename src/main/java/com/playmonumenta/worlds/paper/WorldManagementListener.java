@@ -61,7 +61,9 @@ public class WorldManagementListener implements Listener {
 				// RESPAWN: The player is respawning in this world after having (probably) died there
 				if (WorldManagementPlugin.getRespawnInstanceCommand() != null) {
 					Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
-						Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRespawnInstanceCommand());
+						if (Bukkit.getOnlinePlayers().contains(player)) {
+							Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRespawnInstanceCommand());
+						}
 					}, 1);
 				}
 			} catch (Exception ex) {
@@ -110,14 +112,18 @@ public class WorldManagementListener implements Listener {
 						// JOIN: The player is joining this world after having last been on a different world (or null)
 						if (WorldManagementPlugin.getJoinInstanceCommand() != null) {
 							Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
-								Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getJoinInstanceCommand());
+								if (Bukkit.getOnlinePlayers().contains(player)) {
+									Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getJoinInstanceCommand());
+								}
 							}, 1);
 						}
 					} else {
 						// REJOIN: The player is joining this world after having most recently left this world
 						if (WorldManagementPlugin.getRejoinInstanceCommand() != null) {
 							Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
-								Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRejoinInstanceCommand());
+								if (Bukkit.getOnlinePlayers().contains(player)) {
+									Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRejoinInstanceCommand());
+								}
 							}, 1);
 						}
 					}
@@ -132,7 +138,9 @@ public class WorldManagementListener implements Listener {
 
 		if (WorldManagementPlugin.getNotifyWorldPermission() != null && player.hasPermission(WorldManagementPlugin.getNotifyWorldPermission())) {
 			Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
-				player.sendMessage(ChatColor.GREEN + "Joined world " + event.getWorld().getName());
+				if (Bukkit.getOnlinePlayers().contains(player)) {
+					player.sendMessage(ChatColor.GREEN + "Joined world " + event.getWorld().getName());
+				}
 			}, 1);
 		}
 	}
