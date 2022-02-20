@@ -78,6 +78,7 @@ public class WorldManagementListener implements Listener {
 	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
 	public void playerJoinSetWorldEvent(PlayerJoinSetWorldEvent event) {
 		Player player = event.getPlayer();
+		WorldManagementPlugin.getInstance().getLogger().fine("playerJoinSetWorldEvent: player=" + player.getName() + " thread=" + Thread.currentThread().getName());
 
 		if (!WorldManagementPlugin.isInstanced()) {
 			String lastSavedWorldName = event.getLastSavedWorldName();
