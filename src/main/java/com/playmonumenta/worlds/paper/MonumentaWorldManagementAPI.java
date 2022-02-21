@@ -229,7 +229,7 @@ public class MonumentaWorldManagementAPI {
 			}
 		}
 
-		logger.fine("ensureWorldLoaded locked: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " lockFail=" + lockFail + " thread=" + Thread.currentThread().getName());
+		logger.fine("ensureWorldLoaded locked: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " thread=" + Thread.currentThread().getName());
 
 		/* ----- LOCK'ed after this point ----- */
 

@@ -18,6 +18,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -143,6 +144,14 @@ public class WorldManagementListener implements Listener {
 					player.sendMessage(ChatColor.GREEN + "Joined world " + event.getWorld().getName());
 				}
 			}, 1);
+		}
+	}
+
+	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+	public void playerChangedWorldEvent(PlayerChangedWorldEvent event) {
+		Player player = event.getPlayer();
+		if (WorldManagementPlugin.getNotifyWorldPermission() != null && player.hasPermission(WorldManagementPlugin.getNotifyWorldPermission())) {
+			player.sendMessage(ChatColor.GREEN + "Changed to world " + player.getLocation().getWorld().getName());
 		}
 	}
 
