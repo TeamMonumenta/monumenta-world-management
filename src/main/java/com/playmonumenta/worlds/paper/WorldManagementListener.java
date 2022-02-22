@@ -63,6 +63,7 @@ public class WorldManagementListener implements Listener {
 				if (WorldManagementPlugin.getRespawnInstanceCommand() != null) {
 					Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
 						if (Bukkit.getOnlinePlayers().contains(player)) {
+							WorldManagementPlugin.getInstance().getLogger().fine("Running respawn command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
 							Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRespawnInstanceCommand());
 						}
 					}, 1);
@@ -115,18 +116,20 @@ public class WorldManagementListener implements Listener {
 						if (WorldManagementPlugin.getJoinInstanceCommand() != null) {
 							Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
 								if (Bukkit.getOnlinePlayers().contains(player)) {
+									WorldManagementPlugin.getInstance().getLogger().fine("Running join command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
 									Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getJoinInstanceCommand());
 								}
-							}, 1);
+							}, 80);
 						}
 					} else {
 						// REJOIN: The player is joining this world after having most recently left this world
 						if (WorldManagementPlugin.getRejoinInstanceCommand() != null) {
 							Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
 								if (Bukkit.getOnlinePlayers().contains(player)) {
+									WorldManagementPlugin.getInstance().getLogger().fine("Running rejoin command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
 									Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRejoinInstanceCommand());
 								}
-							}, 1);
+							}, 80);
 						}
 					}
 				} catch (Exception ex) {
