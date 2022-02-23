@@ -119,7 +119,7 @@ public class WorldManagementListener implements Listener {
 									WorldManagementPlugin.getInstance().getLogger().fine("Running join command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
 									Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getJoinInstanceCommand());
 								}
-							}, 80);
+							}, 1);
 						}
 					} else {
 						// REJOIN: The player is joining this world after having most recently left this world
@@ -129,7 +129,7 @@ public class WorldManagementListener implements Listener {
 									WorldManagementPlugin.getInstance().getLogger().fine("Running rejoin command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
 									Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRejoinInstanceCommand());
 								}
-							}, 80);
+							}, 1);
 						}
 					}
 				} catch (Exception ex) {
@@ -259,16 +259,19 @@ public class WorldManagementListener implements Listener {
 	 * Can run this sync or async. Will test the cache before unnecessarily scheduling world generation
 	 */
 	void pregenerate(Plugin plugin, Logger logger, String name, int delayTicks) {
-		Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> {
-			logger.info("Starting pregeneration of instance " + name);
-			try {
-				MonumentaWorldManagementAPI.ensureWorldLoaded(name, true, true);
-				logger.info("Instance " + name + " pregeneration complete");
-			} catch (Exception ex) {
-				logger.severe("Failed to pregenerate world " + name + ": " + ex.getMessage());
-				ex.printStackTrace();
-			}
-		}, delayTicks);
-		logger.fine("Scheduled pregeneration of instance " + name + " which will start in " + delayTicks + " ticks");
+		logger.fine("Requested pregeneration of instance " + name);
+		if (!MonumentaWorldManagementAPI.isCachedWorldAvailable(name)) {
+			Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> {
+				logger.info("Starting pregeneration of instance " + name);
+				try {
+					MonumentaWorldManagementAPI.ensureWorldLoaded(name, true, true);
+					logger.info("Instance " + name + " pregeneration complete");
+				} catch (Exception ex) {
+					logger.severe("Failed to pregenerate world " + name + ": " + ex.getMessage());
+					ex.printStackTrace();
+				}
+			}, delayTicks);
+			logger.fine("Scheduled pregeneration of instance " + name + " which will start in " + delayTicks + " ticks");
+		}
 	}
 }
