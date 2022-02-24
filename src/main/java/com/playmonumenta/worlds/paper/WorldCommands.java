@@ -125,7 +125,7 @@ public class WorldCommands {
 						forceWorld(sender, (Player)args[0], (String)args[1]);
 					}))
 				.withSubcommand(new CommandAPICommand("sortworld")
-					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.forceworld"))
+					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.sortworld"))
 					.withArguments(new EntitySelectorArgument("player", EntitySelector.ONE_PLAYER))
 					.executes((sender, args) -> {
 						try {
