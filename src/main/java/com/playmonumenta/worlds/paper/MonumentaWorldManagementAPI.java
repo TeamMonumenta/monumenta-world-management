@@ -18,12 +18,15 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
+import com.playmonumenta.redissync.MonumentaRedisSyncAPI;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.World;
 import org.bukkit.World.Environment;
 import org.bukkit.WorldCreator;
 import org.bukkit.WorldType;
+import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
 public class MonumentaWorldManagementAPI {
@@ -159,6 +162,33 @@ public class MonumentaWorldManagementAPI {
 		Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), () -> {
 			getAvailableWorlds();
 		});
+	}
+
+	/**
+	 * Sorts a player to their appropriate instance world based on their score.
+	 *
+	 * Many trigger several other things:
+	 * - Player data will be saved
+	 * - Join command (if configured) runs on player the next tick if this results in changing the player's current world
+	 * - Rejoin command (if configured) runs on player the next tick if they are already on this world
+	 * - Additional instances will start pregenerating (if configured)
+	 *
+	 * Must be called from the main thread
+	 */
+	public static void sortWorld(Player player) throws Exception {
+		WorldManagementListener listener = WorldManagementListener.getInstance();
+		if (listener == null) {
+			throw new Exception("WorldManagementListener is null");
+		}
+
+		// Important - need to save the player's location data on the existing world
+		player.saveData();
+
+		// Figure out what world the player would sort to
+		World newWorld = listener.getSortWorld(player, player.getWorld().getName());
+
+		// Move the player to that world at their last position (or world spawn)
+		MonumentaRedisSyncAPI.getPlayerWorldData(player, newWorld).applyToPlayer(player);
 	}
 
 	/**

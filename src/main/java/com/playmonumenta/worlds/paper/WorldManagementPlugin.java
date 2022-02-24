@@ -146,7 +146,7 @@ public class WorldManagementPlugin extends JavaPlugin {
 		printConfig("copy-world-command", mCopyWorldCommand);
 
 		if (mListener != null) {
-			mListener.reloadConfig(this);
+			mListener.reloadConfig();
 		}
 	}
 
