@@ -124,6 +124,17 @@ public class WorldCommands {
 					.executes((sender, args) -> {
 						forceWorld(sender, (Player)args[0], (String)args[1]);
 					}))
+				.withSubcommand(new CommandAPICommand("sortworld")
+					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.sortworld"))
+					.withArguments(new EntitySelectorArgument("player", EntitySelector.ONE_PLAYER))
+					.executes((sender, args) -> {
+						try {
+							MonumentaWorldManagementAPI.sortWorld((Player)args[0]);
+						} catch (Exception ex) {
+							ex.printStackTrace();
+							CommandAPI.fail(ex.getMessage());
+						}
+					}))
 				.withSubcommand(new CommandAPICommand("createworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.createworld"))
 					.withArguments(new StringArgument("worldName"))
@@ -224,19 +235,19 @@ public class WorldCommands {
 	}
 
 	private static void forceWorld(CommandSender sender, Player player, String worldName) throws WrapperCommandSyntaxException {
-			// Important - need to save the player's location data on the existing world
-			player.saveData();
-			Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
-				try {
-					World newWorld = MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, false, false);
+		// Important - need to save the player's location data on the existing world
+		player.saveData();
+		Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
+			try {
+				World newWorld = MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, false, false);
 
-					MonumentaRedisSyncAPI.getPlayerWorldData(player, newWorld).applyToPlayer(player);
-				} catch (Exception ex) {
-					sender.sendMessage(ChatColor.RED + ex.getMessage());
-					ex.printStackTrace();
-				}
-			}, 1);
+				MonumentaRedisSyncAPI.getPlayerWorldData(player, newWorld).applyToPlayer(player);
+			} catch (Exception ex) {
+				sender.sendMessage(ChatColor.RED + ex.getMessage());
+				ex.printStackTrace();
+			}
+		}, 1);
 
-			player.sendMessage("Loaded world '" + worldName + "' and moved to it");
+		player.sendMessage("Loaded world '" + worldName + "' and moved to it");
 	}
 }

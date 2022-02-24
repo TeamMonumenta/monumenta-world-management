@@ -24,12 +24,21 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
 public class WorldManagementListener implements Listener {
+	private static @Nullable WorldManagementListener INSTANCE = null;
 
 	private @Nullable BukkitTask mUnloadTask = null;
 	private int mHighestSeenInstance = 0;
+	private final Plugin mPlugin;
+	private final Logger mLogger;
 
 	protected WorldManagementListener(Plugin plugin) {
-		reloadConfig(plugin);
+		mPlugin = plugin;
+		mLogger = plugin.getLogger();
+		INSTANCE = this;
+	}
+
+	protected static @Nullable WorldManagementListener getInstance() {
+		return INSTANCE;
 	}
 
 	/*
@@ -61,9 +70,9 @@ public class WorldManagementListener implements Listener {
 
 				// RESPAWN: The player is respawning in this world after having (probably) died there
 				if (WorldManagementPlugin.getRespawnInstanceCommand() != null) {
-					Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
+					Bukkit.getScheduler().runTaskLater(mPlugin, () -> {
 						if (Bukkit.getOnlinePlayers().contains(player)) {
-							WorldManagementPlugin.getInstance().getLogger().fine("Running respawn command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
+							mLogger.fine("Running respawn command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
 							Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRespawnInstanceCommand());
 						}
 					}, 1);
@@ -71,7 +80,7 @@ public class WorldManagementListener implements Listener {
 			} catch (Exception ex) {
 				String msg = "Failed to load your assigned world instance " + score + ": " + ex.getMessage();
 				player.sendMessage(msg);
-				WorldManagementPlugin.getInstance().getLogger().warning(msg);
+				mLogger.warning(msg);
 				ex.printStackTrace();
 			}
 		}
@@ -80,7 +89,7 @@ public class WorldManagementListener implements Listener {
 	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
 	public void playerJoinSetWorldEvent(PlayerJoinSetWorldEvent event) {
 		Player player = event.getPlayer();
-		WorldManagementPlugin.getInstance().getLogger().fine("playerJoinSetWorldEvent: player=" + player.getName() + " thread=" + Thread.currentThread().getName());
+		mLogger.fine("playerJoinSetWorldEvent: player=" + player.getName() + " thread=" + Thread.currentThread().getName());
 
 		if (!WorldManagementPlugin.isInstanced()) {
 			String lastSavedWorldName = event.getLastSavedWorldName();
@@ -93,56 +102,20 @@ public class WorldManagementListener implements Listener {
 				} catch (Exception ex) {
 					String msg = "Failed to load the last world you were on (" + lastSavedWorldName + "): " + ex.getMessage();
 					player.sendMessage(msg);
-					WorldManagementPlugin.getInstance().getLogger().warning(msg);
+					mLogger.warning(msg);
 					ex.printStackTrace();
 				}
 			}
 		} else {
-			int score = ScoreboardUtils.getScoreboardValue(player, WorldManagementPlugin.getInstanceObjective()).orElse(0);
-			if (score <= 0) {
-				player.sendMessage(ChatColor.RED + "You joined an instanced world without an instance assigned to you. Unless you are an operator, this is probably a bug");
-			} else {
-				try {
-					World world = MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, false, WorldManagementPlugin.allowInstanceAutocreation());
-					event.setWorld(world);
-
-					if (score > mHighestSeenInstance) {
-						mHighestSeenInstance = score;
-						refreshPregeneration(WorldManagementPlugin.getInstance(), WorldManagementPlugin.getInstance().getLogger(), 5 * 20); // 5s delay
-					}
-
-					if (!event.getWorld().getName().equals(event.getLastSavedWorldName())) {
-						// JOIN: The player is joining this world after having last been on a different world (or null)
-						if (WorldManagementPlugin.getJoinInstanceCommand() != null) {
-							Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
-								if (Bukkit.getOnlinePlayers().contains(player)) {
-									WorldManagementPlugin.getInstance().getLogger().fine("Running join command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
-									Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getJoinInstanceCommand());
-								}
-							}, 1);
-						}
-					} else {
-						// REJOIN: The player is joining this world after having most recently left this world
-						if (WorldManagementPlugin.getRejoinInstanceCommand() != null) {
-							Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
-								if (Bukkit.getOnlinePlayers().contains(player)) {
-									WorldManagementPlugin.getInstance().getLogger().fine("Running rejoin command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
-									Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRejoinInstanceCommand());
-								}
-							}, 1);
-						}
-					}
-				} catch (Exception ex) {
-					String msg = "Failed to load your assigned world instance " + score + ": " + ex.getMessage();
-					player.sendMessage(msg);
-					WorldManagementPlugin.getInstance().getLogger().warning(msg);
-					ex.printStackTrace();
-				}
+			try {
+				event.setWorld(getSortWorld(player, event.getLastSavedWorldName()));
+			} catch (Exception ex) {
+				mLogger.warning("Failed to set world for player " + player.getName() + ": " + ex.getMessage());
 			}
 		}
 
 		if (WorldManagementPlugin.getNotifyWorldPermission() != null && player.hasPermission(WorldManagementPlugin.getNotifyWorldPermission())) {
-			Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
+			Bukkit.getScheduler().runTaskLater(mPlugin, () -> {
 				if (Bukkit.getOnlinePlayers().contains(player)) {
 					player.sendMessage(ChatColor.GREEN + "Joined world " + event.getWorld().getName());
 				}
@@ -158,7 +131,7 @@ public class WorldManagementListener implements Listener {
 		}
 	}
 
-	protected void reloadConfig(Plugin plugin) {
+	protected void reloadConfig() {
 		if (mUnloadTask != null && !mUnloadTask.isCancelled()) {
 			mUnloadTask.cancel();
 			mUnloadTask = null;
@@ -167,7 +140,7 @@ public class WorldManagementListener implements Listener {
 		if (WorldManagementPlugin.getUnloadInactiveWorldAfterTicks() > 0) {
 			Map<UUID, Integer> worldIdleTimes = new HashMap<>();
 
-			mUnloadTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+			mUnloadTask = Bukkit.getScheduler().runTaskTimer(mPlugin, () -> {
 				List<World> worlds = Bukkit.getWorlds();
 				for (int i = 1; i < worlds.size(); i++) { // Ignore the primary world
 					World world = worlds.get(i);
@@ -177,13 +150,13 @@ public class WorldManagementListener implements Listener {
 					} else {
 						Integer idleTime = worldIdleTimes.getOrDefault(world.getUID(), 0) + 200;
 						if (idleTime > WorldManagementPlugin.getUnloadInactiveWorldAfterTicks()) {
-							plugin.getLogger().info("Unloading world '" + world.getName() + "' which has had no players for " + idleTime + " ticks");
+							mLogger.info("Unloading world '" + world.getName() + "' which has had no players for " + idleTime + " ticks");
 							MonumentaWorldManagementAPI.unloadWorld(world.getName()).whenComplete((unused, ex) -> {
 								if (ex != null) {
-									plugin.getLogger().warning("Failed to unload world '" + world.getName() + "': " + ex.getMessage());
+									mLogger.warning("Failed to unload world '" + world.getName() + "': " + ex.getMessage());
 								} else {
 									worldIdleTimes.remove(world.getUID());
-									plugin.getLogger().info("Unloaded world " + world.getName());
+									mLogger.info("Unloaded world " + world.getName());
 								}
 							});
 							// Even though it hasn't unloaded yet, reset its idle time so it won't attempt to unload constantly
@@ -200,54 +173,104 @@ public class WorldManagementListener implements Listener {
 			/* Instance pregeneration was set in config */
 			String rboardName = WorldManagementPlugin.getPregeneratedRBoardName();
 			String rboardKey = WorldManagementPlugin.getPregeneratedRBoardKey();
-			Logger logger = plugin.getLogger();
 
 			if (rboardName != null && rboardKey != null) {
-				Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+				Bukkit.getScheduler().runTaskAsynchronously(mPlugin, () -> {
 					try {
 						Map<String, String> result = MonumentaRedisSyncAPI.rboardGet(rboardName, rboardKey).get();
 						String score = result.get(rboardKey);
 						if (score == null) {
-							logger.warning("Tried to get rboard value " + rboardName + " -> " + rboardKey + " but got null");
-							logger.warning("Defaulting to " + mHighestSeenInstance + ", which is probably not what you want");
+							mLogger.warning("Tried to get rboard value " + rboardName + " -> " + rboardKey + " but got null");
+							mLogger.warning("Defaulting to " + mHighestSeenInstance + ", which is probably not what you want");
 						} else {
 							int rboard = Integer.parseInt(score);
 							if (rboard >= mHighestSeenInstance) {
 								mHighestSeenInstance = rboard;
-								logger.info("Pregeneration enabled: Setting highest seen instance to " + mHighestSeenInstance + " from RBoard");
+								mLogger.info("Pregeneration enabled: Setting highest seen instance to " + mHighestSeenInstance + " from RBoard");
 							} else {
-								logger.info("Pregeneration enabled: Leaving highest seen instance at " + mHighestSeenInstance + " which is already higher than value " + rboard + " from RBoard");
+								mLogger.info("Pregeneration enabled: Leaving highest seen instance at " + mHighestSeenInstance + " which is already higher than value " + rboard + " from RBoard");
 							}
 						}
 					} catch (Exception ex) {
-						logger.severe("Caught exception while fetching highest seen instance: " + ex.getMessage());
+						mLogger.severe("Caught exception while fetching highest seen instance: " + ex.getMessage());
 						ex.printStackTrace();
 					}
-					refreshPregeneration(plugin, logger, 15 * 20); // 15s delay
+					refreshPregeneration(15 * 20); // 15s delay
 				});
 			} else {
-				refreshPregeneration(plugin, logger, 15 * 20); // 15s delay
+				refreshPregeneration(15 * 20); // 15s delay
 			}
 		}
 	}
 
 	/**
-	 * Starts pregeneration of instances that are missing relative to mHighestSeenInstance
+	 * Gets the world where a player should be sorted to based on their instance score.
 	 *
-	 * Can run this sync or async.
+	 * Throws an exception if score is 0 or the world fails to load. Will trigger instance pregeneration if applicable.
+	 *
+	 * If the new world's name is not the provided currentWorldName, then the join command will run, otherwise the rejoin command will run as the player (if configured)
+	 *
+	 * Will not actually put the player on this world - need to do this and then also set their location data.
+	 *
+	 * XXX: This should only be called as a precursor to moving the player to this world immediately afterwards on this same tick, otherwise the join/rejoin functions will be called incorrectly!
+	 *
+	 * Must be called from the main thread
 	 */
-	void refreshPregeneration(Plugin plugin, Logger logger, int baseDelayTicks) {
-		if (WorldManagementPlugin.getPregeneratedInstances() > 0) {
-			logger.info("Refreshing instance pregeneration: Highest seen instance: " + mHighestSeenInstance);
+	protected World getSortWorld(Player player, @Nullable String currentWorldName) throws Exception {
+		int score = ScoreboardUtils.getScoreboardValue(player, WorldManagementPlugin.getInstanceObjective()).orElse(0);
+		if (score <= 0) {
+			throw new Exception("Tried to sort player but instance score is 0");
+		}
 
-			Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+		World world = MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, false, WorldManagementPlugin.allowInstanceAutocreation());
+
+		if (score > mHighestSeenInstance) {
+			mHighestSeenInstance = score;
+			refreshPregeneration(5 * 20); // 5s delay
+		}
+
+		if (!world.getName().equals(currentWorldName)) {
+			// JOIN: The player is joining this world after having last been on a different world (or null)
+			if (WorldManagementPlugin.getJoinInstanceCommand() != null) {
+				Bukkit.getScheduler().runTaskLater(mPlugin, () -> {
+					if (Bukkit.getOnlinePlayers().contains(player)) {
+						mLogger.fine("Running join command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
+						Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getJoinInstanceCommand());
+					}
+				}, 1);
+			}
+		} else {
+			// REJOIN: The player is joining this world after having most recently left this world
+			if (WorldManagementPlugin.getRejoinInstanceCommand() != null) {
+				Bukkit.getScheduler().runTaskLater(mPlugin, () -> {
+					if (Bukkit.getOnlinePlayers().contains(player)) {
+						mLogger.fine("Running rejoin command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
+						Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRejoinInstanceCommand());
+					}
+				}, 1);
+			}
+		}
+
+		return world;
+	}
+
+	/**
+	 * Starts pregeneration of instances that are missing relative to mHighestSeenInstance.
+	 *
+	 * Can run this sync or async. Will only pregenerate if configured to do so.
+	 */
+	private void refreshPregeneration(int baseDelayTicks) {
+		if (WorldManagementPlugin.getPregeneratedInstances() > 0) {
+			mLogger.info("Refreshing instance pregeneration: Highest seen instance: " + mHighestSeenInstance);
+
+			Bukkit.getScheduler().runTaskAsynchronously(mPlugin, () -> {
 				MonumentaWorldManagementAPI.getAvailableWorlds(); // Updates the cache
 
 				for (int i = 0; i < WorldManagementPlugin.getPregeneratedInstances(); i++) {
 					int instance = mHighestSeenInstance + 1 + i;
 					String name = WorldManagementPlugin.getBaseWorldName() + instance;
 
-					pregenerate(plugin, logger, name, baseDelayTicks + 15*20*i); // Run tasks 15s apart, just to avoid overloading the startup process
+					pregenerate(name, baseDelayTicks + 15*20*i); // Run tasks 15s apart, just to avoid overloading the startup process
 				}
 			});
 		}
@@ -258,20 +281,20 @@ public class WorldManagementListener implements Listener {
 	 *
 	 * Can run this sync or async. Will test the cache before unnecessarily scheduling world generation
 	 */
-	void pregenerate(Plugin plugin, Logger logger, String name, int delayTicks) {
-		logger.fine("Requested pregeneration of instance " + name);
+	private void pregenerate(String name, int delayTicks) {
+		mLogger.fine("Requested pregeneration of instance " + name);
 		if (!MonumentaWorldManagementAPI.isCachedWorldAvailable(name)) {
-			Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> {
-				logger.info("Starting pregeneration of instance " + name);
+			Bukkit.getScheduler().runTaskLaterAsynchronously(mPlugin, () -> {
+				mLogger.info("Starting pregeneration of instance " + name);
 				try {
 					MonumentaWorldManagementAPI.ensureWorldLoaded(name, true, true);
-					logger.info("Instance " + name + " pregeneration complete");
+					mLogger.info("Instance " + name + " pregeneration complete");
 				} catch (Exception ex) {
-					logger.severe("Failed to pregenerate world " + name + ": " + ex.getMessage());
+					mLogger.severe("Failed to pregenerate world " + name + ": " + ex.getMessage());
 					ex.printStackTrace();
 				}
 			}, delayTicks);
-			logger.fine("Scheduled pregeneration of instance " + name + " which will start in " + delayTicks + " ticks");
+			mLogger.fine("Scheduled pregeneration of instance " + name + " which will start in " + delayTicks + " ticks");
 		}
 	}
 }
