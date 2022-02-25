@@ -35,6 +35,7 @@ public class WorldManagementListener implements Listener {
 		mPlugin = plugin;
 		mLogger = plugin.getLogger();
 		INSTANCE = this;
+		reloadConfig();
 	}
 
 	protected static @Nullable WorldManagementListener getInstance() {
