@@ -24,7 +24,7 @@ plugins {
 repositories {
     mavenLocal()
     maven {
-        url = uri("https://papermc.io/repo/repository/maven-public/")
+        url = uri("https://repo.papermc.io/repository/maven-public/")
     }
 
     maven {
@@ -32,7 +32,7 @@ repositories {
     }
 
     maven {
-        url = uri("https://oss.sonatype.org/content/repositories/snapshots")
+        url = uri("https://oss.sonatype.org/content/repositories/snapshots/")
     }
 
     maven {
@@ -123,7 +123,6 @@ tasks.withType<JavaCompile>().configureEach {
     //options.compilerArgs.add("-Xlint:deprecation")
 
     options.errorprone {
-        // TODO This must be turned back on as soon as some of the other warnings are under control
         option("NullAway:AnnotatedPackages", "com.playmonumenta")
 
         allErrorsAsWarnings.set(true)
@@ -137,6 +136,7 @@ tasks.withType<JavaCompile>().configureEach {
         check("StaticAssignmentInConstructor", CheckSeverity.OFF) // We have tons of these on purpose
         check("StringSplitter", CheckSeverity.OFF) // We have a lot of string splits too which are fine for this use
         check("MutablePublicArray", CheckSeverity.OFF) // These are bad practice but annoying to refactor and low risk of actual bugs
+        check("InlineMeSuggester", CheckSeverity.OFF) // This seems way overkill
     }
 }
 
