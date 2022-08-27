@@ -5,8 +5,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import com.bergerkiller.bukkit.lightcleaner.lighting.LightingService;
 import com.playmonumenta.redissync.MonumentaRedisSyncAPI;
 
 import org.bukkit.Bukkit;
@@ -207,7 +209,38 @@ public class WorldCommands {
 							}
 						});
 					}))
+				.withSubcommand(new CommandAPICommand("upgradeworlds")
+					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.upgradeworlds"))
+					.executes((sender, args) -> {
+						Logger log = WorldManagementPlugin.getInstance().getLogger();
+						// Get a list of worlds in alphabetical order
+						List<World> worlds = Bukkit.getWorlds();
+						worlds.sort((World w1, World w2) -> w1.getName().compareTo(w2.getName()));
+						for (World world : worlds) {
+							// Load world
+							String worldName = world.getName();
+							try {
+								MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, false, false);
+							} catch (Exception ex) {
+								CommandAPI.fail(ex.getMessage());
+							}
+							// Lightcleaner API
+							final long lightTime = System.currentTimeMillis();
+							LightingService.scheduleWorld(world);
+							log.finer(() -> "scheduleLighting took " + Long.toString(System.currentTimeMillis() - lightTime) + " milliseconds (main thread)"); // STOP -->
+							// Unload world
+							MonumentaWorldManagementAPI.unloadWorld(worldName).whenComplete((unused, ex) -> {
+								if (ex != null) {
+									sender.sendMessage("Failed to unload world '" + worldName + "': " + ex.getMessage());
+								} else {
+									sender.sendMessage("Unloaded world '" + worldName + "'");
+								}
+							});
+							log.fine(String.format("World %s has finished upgrading.", world.getName()));
+						}
+					}))
 			).register();
+
 
 		// Register a copy of "/monumenta worldmanagement forceworld @s world" as "/world <world>" for convenience
 		new CommandAPICommand("world")
