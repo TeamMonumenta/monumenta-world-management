@@ -58,6 +58,8 @@ dependencies {
     compileOnly("dev.jorel.CommandAPI:commandapi-core:6.0.0")
     compileOnly("com.playmonumenta:monumenta-network-relay:1.0")
     compileOnly("com.playmonumenta:redissync:3.0")
+    compileOnly("com.bergerkiller.bukkit:LightCleaner:1.15.2-v1")
+    compileOnly("com.bergerkiller.bukkit:BKCommonLib:1.15.2-v2")
     errorprone("com.google.errorprone:error_prone_core:2.10.0")
     errorprone("com.uber.nullaway:nullaway:0.9.5")
 
@@ -81,6 +83,7 @@ bukkit {
     name = "MonumentaWorldManagement"
     authors = listOf("The Monumenta Team")
     depend = listOf("CommandAPI", "MonumentaNetworkRelay", "MonumentaRedisSync")
+    softDepend = listOf("LightCleaner")
 }
 
 // Configure bungee.yml generation
