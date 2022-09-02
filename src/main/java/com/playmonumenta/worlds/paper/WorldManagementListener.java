@@ -206,15 +206,15 @@ public class WorldManagementListener implements Listener {
 
 	/**
 	 * Gets the world where a player should be sorted to based on their instance score.
-	 *
+	 * <p>
 	 * Throws an exception if score is 0 or the world fails to load. Will trigger instance pregeneration if applicable.
-	 *
+	 * <p>
 	 * If the new world's name is not the provided currentWorldName, then the join command will run, otherwise the rejoin command will run as the player (if configured)
-	 *
+	 * <p>
 	 * Will not actually put the player on this world - need to do this and then also set their location data.
-	 *
+	 * <p>
 	 * XXX: This should only be called as a precursor to moving the player to this world immediately afterwards on this same tick, otherwise the join/rejoin functions will be called incorrectly!
-	 *
+	 * <p>
 	 * Must be called from the main thread
 	 */
 	protected World getSortWorld(Player player, @Nullable String currentWorldName) throws Exception {
@@ -232,32 +232,36 @@ public class WorldManagementListener implements Listener {
 
 		if (!world.getName().equals(currentWorldName)) {
 			// JOIN: The player is joining this world after having last been on a different world (or null)
-			if (WorldManagementPlugin.getJoinInstanceCommand() != null) {
-				Bukkit.getScheduler().runTaskLater(mPlugin, () -> {
-					if (Bukkit.getOnlinePlayers().contains(player)) {
-						mLogger.fine("Running join command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
-						Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getJoinInstanceCommand());
-					}
-				}, 1);
-			}
+			executeCommandWhenOnline(player, WorldManagementPlugin.getJoinInstanceCommand(), 0);
 		} else {
 			// REJOIN: The player is joining this world after having most recently left this world
-			if (WorldManagementPlugin.getRejoinInstanceCommand() != null) {
-				Bukkit.getScheduler().runTaskLater(mPlugin, () -> {
-					if (Bukkit.getOnlinePlayers().contains(player)) {
-						mLogger.fine("Running rejoin command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
-						Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRejoinInstanceCommand());
-					}
-				}, 1);
-			}
+			executeCommandWhenOnline(player, WorldManagementPlugin.getRejoinInstanceCommand(), 0);
 		}
 
 		return world;
 	}
 
+	private void executeCommandWhenOnline(Player player, @Nullable String command, int attempts) {
+		if (command == null) {
+			return;
+		}
+		if (attempts >= 20) {
+			mLogger.info("Failed running (re)join command on player=" + player.getName() + " after " + attempts + " attempts");
+			return;
+		}
+		Bukkit.getScheduler().runTaskLater(mPlugin, () -> {
+			if (player.isOnline()) {
+				mLogger.fine("Running (re)join command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
+				Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + command);
+			} else {
+				executeCommandWhenOnline(player, command, attempts + 1);
+			}
+		}, 1);
+	}
+
 	/**
 	 * Starts pregeneration of instances that are missing relative to mHighestSeenInstance.
-	 *
+	 * <p>
 	 * Can run this sync or async. Will only pregenerate if configured to do so.
 	 */
 	private void refreshPregeneration(int baseDelayTicks) {
@@ -271,7 +275,7 @@ public class WorldManagementListener implements Listener {
 					int instance = mHighestSeenInstance + 1 + i;
 					String name = WorldManagementPlugin.getBaseWorldName() + instance;
 
-					pregenerate(name, baseDelayTicks + 15*20*i); // Run tasks 15s apart, just to avoid overloading the startup process
+					pregenerate(name, baseDelayTicks + 15 * 20 * i); // Run tasks 15s apart, just to avoid overloading the startup process
 				}
 			});
 		}
@@ -279,7 +283,7 @@ public class WorldManagementListener implements Listener {
 
 	/**
 	 * Causes a world to be pregenerated if it doesn't exist.
-	 *
+	 * <p>
 	 * Can run this sync or async. Will test the cache before unnecessarily scheduling world generation
 	 */
 	private void pregenerate(String name, int delayTicks) {
