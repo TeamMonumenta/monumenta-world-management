@@ -1,16 +1,16 @@
 package com.playmonumenta.worlds.paper;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
+import com.playmonumenta.redissync.MonumentaRedisSyncAPI;
+import com.playmonumenta.redissync.event.PlayerJoinSetWorldEvent;
+import com.playmonumenta.redissync.event.PlayerSaveEvent;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
-
 import javax.annotation.Nullable;
-
-import com.playmonumenta.redissync.MonumentaRedisSyncAPI;
-import com.playmonumenta.redissync.event.PlayerJoinSetWorldEvent;
-
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.World;
@@ -19,11 +19,13 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
 public class WorldManagementListener implements Listener {
+	private static final String IDENTIFIER = "MonumentaWorldManagementV1";
 	private static @Nullable WorldManagementListener INSTANCE = null;
 
 	private @Nullable BukkitTask mUnloadTask = null;
@@ -125,6 +127,73 @@ public class WorldManagementListener implements Listener {
 	}
 
 	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+	public void playerJoinEvent(PlayerJoinEvent event) {
+		String instanceObjective = WorldManagementPlugin.getInstanceObjective();
+		if (instanceObjective.isEmpty()) {
+			return;
+		}
+
+		Player player = event.getPlayer();
+		int score = ScoreboardUtils.getScoreboardValue(player, instanceObjective).orElse(0);
+		if (score <= 0) {
+			return;
+		}
+
+		JsonObject pluginData = MonumentaRedisSyncAPI.getPlayerPluginData(player.getUniqueId(), IDENTIFIER);
+		boolean firstJoin = true;
+		if (pluginData != null) {
+			JsonObject lastJoinedWorlds = pluginData.getAsJsonObject("LastJoinedWorlds");
+			if (lastJoinedWorlds != null) {
+				JsonPrimitive lastJoinedWorldJson = lastJoinedWorlds.getAsJsonPrimitive(instanceObjective);
+				if (lastJoinedWorldJson != null && lastJoinedWorldJson.isNumber()) {
+					int lastJoinedWorld = lastJoinedWorldJson.getAsInt();
+					firstJoin = lastJoinedWorld != score;
+				}
+			}
+		}
+
+		String command;
+		if (firstJoin) {
+			// JOIN: The player is joining this world for the first time
+			command = WorldManagementPlugin.getJoinInstanceCommand();
+		} else {
+			// REJOIN: The player is joining this world after having most recently left this world
+			command = WorldManagementPlugin.getRejoinInstanceCommand();
+		}
+		if (command != null) {
+			mLogger.fine("Running (re)join command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
+			Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + command);
+		}
+	}
+
+	@EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
+	public void playerSaveEvent(PlayerSaveEvent event) {
+		Player player = event.getPlayer();
+		UUID playerId = player.getUniqueId();
+		String instanceObjective = WorldManagementPlugin.getInstanceObjective();
+		int score = ScoreboardUtils.getScoreboardValue(player, instanceObjective).orElse(0);
+
+		JsonObject pluginData = MonumentaRedisSyncAPI.getPlayerPluginData(playerId, IDENTIFIER);
+		if (pluginData == null) {
+			pluginData = new JsonObject();
+		}
+		JsonObject lastJoinedWorlds = pluginData.getAsJsonObject("LastJoinedWorlds");
+		if (lastJoinedWorlds == null) {
+			lastJoinedWorlds = new JsonObject();
+			pluginData.add("LastJoinedWorlds", lastJoinedWorlds);
+		}
+		if (!instanceObjective.isEmpty()) {
+			if (score <= 0) {
+				lastJoinedWorlds.remove(instanceObjective);
+			} else {
+				lastJoinedWorlds.addProperty(instanceObjective, score);
+			}
+		}
+
+		event.setPluginData(IDENTIFIER, pluginData);
+	}
+
+	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
 	public void playerChangedWorldEvent(PlayerChangedWorldEvent event) {
 		Player player = event.getPlayer();
 		if (WorldManagementPlugin.getNotifyWorldPermission() != null && player.hasPermission(WorldManagementPlugin.getNotifyWorldPermission())) {
@@ -149,7 +218,7 @@ public class WorldManagementListener implements Listener {
 					if (world.getPlayers().size() > 0) {
 						worldIdleTimes.put(world.getUID(), 0);
 					} else {
-						Integer idleTime = worldIdleTimes.getOrDefault(world.getUID(), 0) + 200;
+						int idleTime = worldIdleTimes.getOrDefault(world.getUID(), 0) + 200;
 						if (idleTime > WorldManagementPlugin.getUnloadInactiveWorldAfterTicks()) {
 							mLogger.info("Unloading world '" + world.getName() + "' which has had no players for " + idleTime + " ticks");
 							MonumentaWorldManagementAPI.unloadWorld(world.getName()).whenComplete((unused, ex) -> {
@@ -229,34 +298,7 @@ public class WorldManagementListener implements Listener {
 			mHighestSeenInstance = score;
 			refreshPregeneration(5 * 20); // 5s delay
 		}
-
-		if (!world.getName().equals(currentWorldName)) {
-			// JOIN: The player is joining this world after having last been on a different world (or null)
-			executeCommandWhenOnline(player, WorldManagementPlugin.getJoinInstanceCommand(), 0);
-		} else {
-			// REJOIN: The player is joining this world after having most recently left this world
-			executeCommandWhenOnline(player, WorldManagementPlugin.getRejoinInstanceCommand(), 0);
-		}
-
 		return world;
-	}
-
-	private void executeCommandWhenOnline(Player player, @Nullable String command, int attempts) {
-		if (command == null) {
-			return;
-		}
-		if (attempts >= 20) {
-			mLogger.info("Failed running (re)join command on player=" + player.getName() + " after " + attempts + " attempts");
-			return;
-		}
-		Bukkit.getScheduler().runTaskLater(mPlugin, () -> {
-			if (player.isOnline()) {
-				mLogger.fine("Running (re)join command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
-				Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + command);
-			} else {
-				executeCommandWhenOnline(player, command, attempts + 1);
-			}
-		}, 1);
 	}
 
 	/**
