@@ -61,7 +61,7 @@ dependencies {
     compileOnly("com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT")
     compileOnly("dev.jorel.CommandAPI:commandapi-core:6.0.0")
     compileOnly("com.playmonumenta:monumenta-network-relay:1.0")
-    compileOnly("com.playmonumenta:redissync:3.0")
+    compileOnly("com.playmonumenta:redissync:3.6")
     compileOnly("com.bergerkiller.bukkit:LightCleaner:1.15.2-v1")
     compileOnly("com.bergerkiller.bukkit:BKCommonLib:1.15.2-v2")
     errorprone("com.google.errorprone:error_prone_core:2.10.0")

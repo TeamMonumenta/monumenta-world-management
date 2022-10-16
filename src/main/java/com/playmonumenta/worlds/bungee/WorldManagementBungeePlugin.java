@@ -55,7 +55,7 @@ public class WorldManagementBungeePlugin extends Plugin {
 			getLogger().warning("log-level=" + logLevel + " is invalid - defaulting to INFO");
 		}
 
-		getProxy().setReconnectHandler(new MonumentaReconnectHandler(mDefaultServer));
+		getProxy().setReconnectHandler(new WorldsReconnectHandler(null /* TODO: config default */));
 	}
 
 	@Override

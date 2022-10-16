@@ -1,7 +1,10 @@
 package com.playmonumenta.worlds.paper;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import com.playmonumenta.networkrelay.GatherHeartbeatDataEvent;
 import com.playmonumenta.redissync.MonumentaRedisSyncAPI;
 import com.playmonumenta.redissync.event.PlayerJoinSetWorldEvent;
 import com.playmonumenta.redissync.event.PlayerSaveEvent;
@@ -25,6 +28,9 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
 public class WorldManagementListener implements Listener {
+	private static final String RELAY_IDENTIFIER = "com.playmonumenta.worlds";
+	private static final Pattern DIGIT_PATTERN = Pattern.compile("^[0-9][0-9]*$");
+
 	private static final String IDENTIFIER = "MonumentaWorldManagementV1";
 	private static @Nullable WorldManagementListener INSTANCE = null;
 
@@ -42,6 +48,34 @@ public class WorldManagementListener implements Listener {
 
 	protected static @Nullable WorldManagementListener getInstance() {
 		return INSTANCE;
+	}
+
+	@EventHandler(priority = EventPriority.LOW, ignoreCancelled = false)
+	public void gatherHeartbeatDataEvent(GatherHeartbeatDataEvent event) throws Exception {
+		mLogger.finest("Got relay request for heartbeat data");
+
+		JsonObject data = new JsonObject();
+		data.set("shard_type", WorldManagementPlugin.getTemplateWorldName()); // TODO - this is wrong, needs new config
+		data.addProperty("is_sticky", WorldManagementPlugin.isInstanced()); // TODO - this is wrong, needs new config
+		data.addProperty("player_count", Bukkit.getServer().getOnlinePlayers().size());
+		data.addProperty("supports_new_instances", true); // TODO - this is wrong, needs new config
+
+		JsonArray instances = new JsonArray();
+		String templateStr = WorldManagementPlugin.getTemplateWorldName();
+		for (String worldname : MonumentaWorldManagementAPI.getCachedAvailableWorlds()) {
+			if (worldname.startsWith(templateStr)) {
+				suffix = worldname.substr(templateStr.length());
+				if (DIGIT_PATTERN.matches(suffix)) {
+					int instance = Integer.fromString(suffix);
+					if (instances > 0) {
+						instances.add(instance);
+					}
+				}
+			}
+		}
+		data.add("instances_available", instances);
+
+		event.setPluginData(PLUGIN_IDENTIFIER, data);
 	}
 
 	/*
