@@ -458,7 +458,7 @@ public class MonumentaWorldManagementAPI {
 
 				WorldManagementPlugin.getInstance().getLogger().fine("Unloading chunks for world " + world.getName() + ", still " + chunksLeft.length + " left to go");
 
-				if (mTicks >= 100) {
+				if (mTicks >= 400) {
 					this.cancel();
 					future.completeExceptionally(new Exception("Timed out waiting for chunks to unload for world " + world.getName()));
 					return;
