@@ -4,7 +4,6 @@ import com.playmonumenta.worlds.common.MMLog;
 import java.io.File;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
@@ -92,5 +91,46 @@ public class WorldGenerator {
 			}
 		}
 		return Bukkit.getWorld(name);
+	}
+
+	private CompletableFuture<String> generateWorldInstance() {
+		String templateName = WorldManagementPlugin.getTemplateWorldName();
+		CompletableFuture<String> future = new CompletableFuture<>();
+		if (!worldExists(templateName)) {
+			MMLog.severe("Template world does not exist!");
+			future.completeExceptionally(new Exception("Template world does not exist!"));
+			return future;
+		}
+
+		String pregenBase = PREGEN_PREFIX + WorldManagementPlugin.getBaseWorldName();
+		String pregenName = null;
+		boolean foundSlot = false;
+		for (int pregenIndex = 0; pregenIndex < WorldManagementPlugin.getPregeneratedInstances(); pregenIndex++) {
+			pregenName = pregenBase + pregenIndex;
+			if (mPregeneratedWorlds.contains(pregenName)) {
+				continue;
+			}
+			CompletableFuture<String> existingFuture = mPregeneratingWorlds.computeIfAbsent(pregenName, key -> future);
+			if (existingFuture != future) {
+				foundSlot = true;
+				break;
+			}
+		}
+
+		if (pregenName == null) {
+			MMLog.warning("Pregen instance limit <= 0!");
+			future.completeExceptionally(new Exception("Pregen instance limit <= 0!"));
+			return future;
+		}
+		if (!foundSlot) {
+			MMLog.info("All pregen slots filled.");
+			future.completeExceptionally(new Exception("All pregen slots filled."));
+			return future;
+		}
+
+		Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), () -> {
+			// TODO copy world
+		});
+		return future;
 	}
 }
