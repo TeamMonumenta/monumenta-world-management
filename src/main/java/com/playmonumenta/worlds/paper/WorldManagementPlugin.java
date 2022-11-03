@@ -14,6 +14,7 @@ import com.playmonumenta.worlds.common.CustomLogger;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jetbrains.annotations.NotNull;
 
 public class WorldManagementPlugin extends JavaPlugin {
 	private static @Nullable WorldManagementPlugin INSTANCE = null;
@@ -35,6 +36,7 @@ public class WorldManagementPlugin extends JavaPlugin {
 	private static String mCopyWorldCommand = "cp -a";
 
 	private @Nullable WorldManagementListener mListener = null;
+	private @Nullable WorldGenerator mGenerator = null;
 
 	@Override
 	public void onLoad() {
@@ -47,6 +49,7 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 		loadConfig();
 
+		mGenerator = WorldGenerator.getInstance();
 		mListener = new WorldManagementListener(this);
 		Bukkit.getPluginManager().registerEvents(mListener, this);
 
@@ -216,7 +219,7 @@ public class WorldManagementPlugin extends JavaPlugin {
 	}
 
 	@Override
-	public Logger getLogger() {
+	public @NotNull Logger getLogger() {
 		if (mLogger == null) {
 			mLogger = new CustomLogger(super.getLogger(), Level.INFO);
 		}
@@ -231,6 +234,9 @@ public class WorldManagementPlugin extends JavaPlugin {
 	/* If this ever returned null everything would explode anyway, no reason to add error handling around this */
 	@SuppressWarnings("NullAway")
 	protected static WorldManagementPlugin getInstance() {
+		if (INSTANCE == null) {
+			throw new RuntimeException("WorldManagementPlugin accessed before loading");
+		}
 		return INSTANCE;
 	}
 }
