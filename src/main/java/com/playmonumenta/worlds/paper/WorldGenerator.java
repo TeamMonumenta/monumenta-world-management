@@ -14,6 +14,7 @@ public class WorldGenerator {
 	private static WorldGenerator INSTANCE = null;
 	private static final String PREGEN_PREFIX = "pregen_";
 	private static final String GENERATING_SUFFIX = ".generating";
+	// TODO Rework to handle multiple template worlds
 	private final LinkedBlockingQueue<String> mPregeneratedWorlds = new LinkedBlockingQueue<>();
 	private final ConcurrentSkipListMap<String, CompletableFuture<String>> mPregeneratingWorlds = new ConcurrentSkipListMap<>();
 	private @Nullable BukkitRunnable mPregenScheduler = null;
@@ -49,6 +50,8 @@ public class WorldGenerator {
 			mPregeneratedWorlds.add(name);
 		}
 
+		// TODO File watcher to restart generation if pregenerated world is deleted? Command to regenerate pregenerated instances?
+
 		// Start generating instances
 		schedulePregeneration();
 	}
@@ -68,16 +71,16 @@ public class WorldGenerator {
 		return mPregeneratingWorlds.size();
 	}
 
-	public boolean worldExists(String name) {
+	public static boolean worldExists(String name) {
 		File target = new File(name);
 		return target.isDirectory() && new File(target, "level.dat").isFile();
 	}
 
-	public World getWorldInstance(String name) {
-		MMLog.fine("Preparing world " + name);
-		if (worldExists(name)) {
-			MMLog.fine("World already exists: " + name);
-			return Bukkit.getWorld(name);
+	public World getWorldInstance(String worldName) {
+		MMLog.fine("Preparing world " + worldName);
+		if (worldExists(worldName)) {
+			MMLog.fine("World already exists: " + worldName);
+			return Bukkit.getWorld(worldName);
 		}
 
 		// Wait for next world to be ready
@@ -88,23 +91,23 @@ public class WorldGenerator {
 			} catch (InterruptedException ignored) {}
 		}
 
-		MMLog.fine("Moving " + pregeneratedWorldName + " to " + name);
+		MMLog.fine("Moving " + pregeneratedWorldName + " to " + worldName);
 		File oldPath = new File(pregeneratedWorldName);
-		File target = new File(name);
+		File target = new File(worldName);
 		if (!oldPath.renameTo(target)) {
 			if (worldExists(pregeneratedWorldName)) {
-				MMLog.warning("Failed to move " + pregeneratedWorldName + " to " + name);
+				MMLog.warning("Failed to move " + pregeneratedWorldName + " to " + worldName);
 				mPregeneratedWorlds.add(pregeneratedWorldName);
 			}
-			if (worldExists(name)) {
-				MMLog.info("World " + name + " somehow appeared without moving a preloaded world");
+			if (worldExists(worldName)) {
+				MMLog.info("World " + worldName + " somehow appeared without moving a preloaded world");
 			} else {
-				MMLog.severe("Failed to load " + name + "!");
+				MMLog.severe("Failed to load " + worldName + "!");
 			}
 		}
 
 		schedulePregeneration();
-		return Bukkit.getWorld(name);
+		return Bukkit.getWorld(worldName);
 	}
 
 	private CompletableFuture<String> generateWorldInstance() {
