@@ -458,6 +458,7 @@ public class MonumentaWorldManagementAPI {
 					// All the chunks unloaded, try to unload the world now
 					this.cancel();
 
+					world.save();
 					if (Bukkit.unloadWorld(world, true)) {
 						// Success!
 						future.complete(null);
