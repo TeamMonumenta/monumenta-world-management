@@ -128,7 +128,7 @@ public class WorldGenerator {
 				continue;
 			}
 			CompletableFuture<String> existingFuture = mPregeneratingWorlds.computeIfAbsent(pregenName, key -> future);
-			if (existingFuture != future) {
+			if (existingFuture == future) {
 				foundSlot = true;
 				break;
 			}
@@ -196,7 +196,7 @@ public class WorldGenerator {
 			@Override
 			public void run() {
 				if (pregeneratedInstances() + pregeneratingInstances() >= WorldManagementPlugin.getPregeneratedInstances()) {
-					MMLog.info("Pregeneration complete.");
+					MMLog.info("All pregeneration started (" + pregeneratingInstances() + ") or complete (" + pregeneratedInstances() + ").");
 					mPregenScheduler = null;
 					this.cancel();
 					return;
