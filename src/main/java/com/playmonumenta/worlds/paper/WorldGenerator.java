@@ -140,7 +140,8 @@ public class WorldGenerator {
 		}
 
 		String pregeneratedWorldName = pregenName;
-		MMLog.info("Starting pregeneration of " + pregeneratedWorldName);
+		MMLog.info("Starting pregeneration of " + pregeneratedWorldName
+			+ "(" + (pregeneratedInstances() + 1) + "/" + WorldManagementPlugin.getPregeneratedInstances() + ")");
 		Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), () -> {
 			try {
 				// Generate the instance
@@ -164,7 +165,8 @@ public class WorldGenerator {
 
 				// Mark as complete and return pregen world name
 				mPregeneratedWorlds.add(pregeneratedWorldName);
-				MMLog.info("Finished pregenerating " + pregeneratedWorldName);
+				MMLog.info("Finished pregenerating " + pregeneratedWorldName
+					+ "(" + (pregeneratedInstances() + 1) + "/" + WorldManagementPlugin.getPregeneratedInstances() + ")");
 				future.complete(pregeneratedWorldName);
 			} catch (Exception ex) {
 				MMLog.severe("Pregeneration failed: " + pregeneratedWorldName);
