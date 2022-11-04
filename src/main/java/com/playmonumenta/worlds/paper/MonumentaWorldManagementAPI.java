@@ -1,6 +1,6 @@
 package com.playmonumenta.worlds.paper;
 
-import com.playmonumenta.worlds.common.MMLog;
+import com.playmonumenta.redissync.MonumentaRedisSyncAPI;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -20,11 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
-
 import javax.annotation.Nullable;
-
-import com.playmonumenta.redissync.MonumentaRedisSyncAPI;
-
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.World;
