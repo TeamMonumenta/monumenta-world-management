@@ -326,7 +326,7 @@ public class MonumentaWorldManagementAPI {
 				throw new Exception("World '" + worldName + "' does not exist and copyTemplateIfNotExist is false");
 			}
 
-			WorldGenerator.getInstance().getWorldInstance(worldName);
+			plugin.getWorldGenerator().getWorldInstance(worldName);
 
 			if (calledAsync) {
 				Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {

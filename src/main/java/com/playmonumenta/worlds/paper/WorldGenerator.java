@@ -7,11 +7,10 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import javax.annotation.Nullable;
 import org.bukkit.Bukkit;
-import org.bukkit.World;
 import org.bukkit.scheduler.BukkitRunnable;
 
 public class WorldGenerator {
-	private static WorldGenerator INSTANCE = null;
+	private static @Nullable WorldGenerator INSTANCE = null;
 	private static final String PREGEN_PREFIX = "pregen_";
 	private static final String GENERATING_SUFFIX = ".generating";
 	// TODO Rework to handle multiple template worlds
@@ -88,7 +87,9 @@ public class WorldGenerator {
 		while (pregeneratedWorldName == null) {
 			try {
 				pregeneratedWorldName = mPregeneratedWorlds.take();
-			} catch (InterruptedException ignored) {}
+			} catch (InterruptedException ignored) {
+				// If an interrupt prevents us from getting the next world, try again
+			}
 		}
 
 		MMLog.fine("Moving " + pregeneratedWorldName + " to " + worldName);

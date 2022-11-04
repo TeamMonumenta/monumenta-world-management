@@ -215,4 +215,11 @@ public class WorldManagementPlugin extends JavaPlugin {
 		}
 		return INSTANCE;
 	}
+
+	protected WorldGenerator getWorldGenerator() {
+		if (mGenerator == null) {
+			mGenerator = WorldGenerator.getInstance();
+		}
+		return mGenerator;
+	}
 }
