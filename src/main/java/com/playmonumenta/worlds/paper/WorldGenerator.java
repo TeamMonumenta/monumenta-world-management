@@ -1,11 +1,10 @@
 package com.playmonumenta.worlds.paper;
 
 import com.playmonumenta.worlds.common.MMLog;
-import com.playmonumenta.worlds.common.Utils.FileUtils;
+import com.playmonumenta.worlds.common.utils.FileUtils;
 import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import javax.annotation.Nullable;
@@ -166,7 +165,7 @@ public class WorldGenerator {
 				// Mark as complete and return pregen world name
 				mPregeneratedWorlds.add(pregeneratedWorldName);
 				MMLog.info("Finished pregenerating " + pregeneratedWorldName
-					+ " (" + (pregeneratedInstances() + 1) + "/" + WorldManagementPlugin.getPregeneratedInstances() + ")");
+					+ " (" + pregeneratedInstances() + "/" + WorldManagementPlugin.getPregeneratedInstances() + ")");
 				future.complete(pregeneratedWorldName);
 			} catch (Exception ex) {
 				MMLog.severe("Pregeneration failed: " + pregeneratedWorldName);

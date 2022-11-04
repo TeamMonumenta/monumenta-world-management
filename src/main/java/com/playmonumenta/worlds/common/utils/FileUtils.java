@@ -1,4 +1,4 @@
-package com.playmonumenta.worlds.common.Utils;
+package com.playmonumenta.worlds.common.utils;
 
 import java.io.IOException;
 import java.nio.file.Files;
