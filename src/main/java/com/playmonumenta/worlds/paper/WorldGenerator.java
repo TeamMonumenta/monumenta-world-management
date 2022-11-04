@@ -1,7 +1,9 @@
 package com.playmonumenta.worlds.paper;
 
 import com.playmonumenta.worlds.common.MMLog;
+import com.playmonumenta.worlds.common.Utils.FileUtils;
 import java.io.File;
+import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -40,8 +42,11 @@ public class WorldGenerator {
 			if (name.endsWith(GENERATING_SUFFIX)) {
 				File failedGeneratedInstance = new File(root, name);
 				MMLog.info("Deleting failed generating world " + name);
-				if (!failedGeneratedInstance.delete()) {
-					MMLog.severe("Failed to delete failed generating instance " + name);
+
+				try {
+					FileUtils.deleteRecursively(failedGeneratedInstance.toPath());
+				} catch (IOException ex) {
+					MMLog.severe("Failed to delete failed generating instance " + name + ": " + ex.getMessage());
 				}
 				continue;
 			}
