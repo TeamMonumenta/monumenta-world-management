@@ -1,5 +1,6 @@
 package com.playmonumenta.worlds.paper;
 
+import com.playmonumenta.worlds.common.MMLog;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -8,8 +9,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -30,6 +35,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
 public class MonumentaWorldManagementAPI {
+	private static int FORCE_LOAD_RADIUS = 2;
+
 	private interface ILoadWorldTask {
 		/**
 		 * Run the supplier now, and use that result to complete the future.
@@ -428,8 +435,30 @@ public class MonumentaWorldManagementAPI {
 					return;
 				}
 
-				Chunk[] chunksLeft = world.getLoadedChunks();
-				if (chunksLeft.length == 0) {
+				List<Chunk> forceLoadedChunks = new ArrayList<>(world.getForceLoadedChunks());
+				List<Chunk> chunksLeft;
+				if (forceLoadedChunks.isEmpty()) {
+					chunksLeft = new ArrayList<>(world.getForceLoadedChunks());
+				} else {
+					Set<Long> forceLoadedKeys = new TreeSet<>();
+					for (Chunk chunk : forceLoadedChunks) {
+						int cx = chunk.getX();
+						int cz = chunk.getZ();
+						for (int cz2 = cz - FORCE_LOAD_RADIUS; cz2 <= cz + FORCE_LOAD_RADIUS; cz2++) {
+							for (int cx2 = cx - FORCE_LOAD_RADIUS; cx2 <= cx + FORCE_LOAD_RADIUS; cx2++) {
+								forceLoadedKeys.add(Chunk.getChunkKey(cx2, cz2));
+							}
+						}
+					}
+					chunksLeft = new ArrayList<>();
+					for (Chunk chunk : world.getLoadedChunks()) {
+						if (!forceLoadedKeys.contains(chunk.getChunkKey())) {
+							chunksLeft.add(chunk);
+						}
+					}
+				}
+
+				if (chunksLeft.size() == 0) {
 					// All the chunks unloaded, try to unload the world now
 					this.cancel();
 
@@ -448,7 +477,7 @@ public class MonumentaWorldManagementAPI {
 					world.unloadChunkRequest(chunk.getX(), chunk.getZ());
 				}
 
-				WorldManagementPlugin.getInstance().getLogger().fine("Unloading chunks for world " + world.getName() + ", still " + chunksLeft.length + " left to go");
+				WorldManagementPlugin.getInstance().getLogger().fine("Unloading chunks for world " + world.getName() + ", still " + chunksLeft.size() + " left to go");
 
 				if (mTicks >= 400) {
 					this.cancel();
