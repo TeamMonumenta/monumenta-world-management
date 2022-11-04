@@ -21,6 +21,10 @@ public class WorldGenerator {
 	private WorldGenerator() {
 		INSTANCE = this;
 
+		if (!WorldManagementPlugin.isInstanced()) {
+			MMLog.info("This shard is not instanced, shutting down world generator.");
+		}
+
 		// Get list of pregenerated/pregenerating worlds
 		File root = new File(".");
 		String[] childPaths = root.list();
@@ -178,6 +182,9 @@ public class WorldGenerator {
 	 * Start generating instances every 15 seconds, if they're not already generating
 	 */
 	public void schedulePregeneration() {
+		if (!WorldManagementPlugin.isInstanced()) {
+			return;
+		}
 		if (mPregenScheduler != null) {
 			return;
 		}
