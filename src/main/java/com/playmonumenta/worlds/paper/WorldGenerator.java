@@ -132,7 +132,8 @@ public class WorldGenerator {
 		Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), () -> {
 			try {
 				// Generate the instance
-				Process process = Runtime.getRuntime().exec(WorldManagementPlugin.getCopyWorldCommand() + " " + templateName + " " + pregeneratedWorldName);
+				String generatingWorldName = pregeneratedWorldName + GENERATING_SUFFIX;
+				Process process = Runtime.getRuntime().exec(WorldManagementPlugin.getCopyWorldCommand() + " " + templateName + " " + generatingWorldName);
 				int exitVal = process.waitFor();
 				if (exitVal != 0) {
 					String msg = "Failed to copy world '" + "template" + "' to '" + worldName + "': " + exitVal;
@@ -140,7 +141,19 @@ public class WorldGenerator {
 					throw new Exception(msg);
 				}
 
-				// TODO Generation successful, move to its reserved place before marking as complete and returning pregen world name
+				// Move to pregenerated world path
+				File generatingWorld = new File(generatingWorldName);
+				File pregeneratedWorld = new File(pregeneratedWorldName);
+				if (!generatingWorld.renameTo(pregeneratedWorld)) {
+					String msg = "Failed to move pregenerating world " + generatingWorld + " to " + pregeneratedWorld;
+					MMLog.severe(msg);
+					throw new Exception(msg);
+				}
+
+				// Mark as complete and return pregen world name
+				mPregeneratedWorlds.add(pregeneratedWorldName);
+				mPregeneratingWorlds.remove(pregeneratedWorldName);
+				future.complete(pregeneratedWorldName);
 			} catch (Exception ex) {
 				future.completeExceptionally(ex);
 			}
