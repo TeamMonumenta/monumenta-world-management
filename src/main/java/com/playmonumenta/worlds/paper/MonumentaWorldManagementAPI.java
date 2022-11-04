@@ -326,15 +326,7 @@ public class MonumentaWorldManagementAPI {
 				throw new Exception("World '" + worldName + "' does not exist and copyTemplateIfNotExist is false");
 			}
 
-			Process process = Runtime.getRuntime().exec(WorldManagementPlugin.getCopyWorldCommand() + " " + copyFromWorldName + " " + worldName);
-
-			int exitVal = process.waitFor();
-			if (exitVal != 0) {
-				String msg = "Failed to copy world '" + "template" + "' to '" + worldName + "': " + exitVal;
-				logger.severe(msg);
-				LOADING_WORLDS.remove(worldName); /* +++++ UNLOCK +++++ */
-				throw new Exception(msg);
-			}
+			WorldGenerator.getInstance().getWorldInstance(worldName);
 
 			if (calledAsync) {
 				Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {

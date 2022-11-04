@@ -29,7 +29,6 @@ public class WorldManagementListener implements Listener {
 	private static @Nullable WorldManagementListener INSTANCE = null;
 
 	private @Nullable BukkitTask mUnloadTask = null;
-	private int mHighestSeenInstance = 0;
 	private final Plugin mPlugin;
 	private final Logger mLogger;
 
@@ -238,39 +237,6 @@ public class WorldManagementListener implements Listener {
 				}
 			}, 200, 200);
 		}
-
-		if (WorldManagementPlugin.getPregeneratedInstances() > 0) {
-			/* Instance pregeneration was set in config */
-			String rboardName = WorldManagementPlugin.getPregeneratedRBoardName();
-			String rboardKey = WorldManagementPlugin.getPregeneratedRBoardKey();
-
-			if (rboardName != null && rboardKey != null) {
-				Bukkit.getScheduler().runTaskAsynchronously(mPlugin, () -> {
-					try {
-						Map<String, String> result = MonumentaRedisSyncAPI.rboardGet(rboardName, rboardKey).get();
-						String score = result.get(rboardKey);
-						if (score == null) {
-							mLogger.warning("Tried to get rboard value " + rboardName + " -> " + rboardKey + " but got null");
-							mLogger.warning("Defaulting to " + mHighestSeenInstance + ", which is probably not what you want");
-						} else {
-							int rboard = Integer.parseInt(score);
-							if (rboard >= mHighestSeenInstance) {
-								mHighestSeenInstance = rboard;
-								mLogger.info("Pregeneration enabled: Setting highest seen instance to " + mHighestSeenInstance + " from RBoard");
-							} else {
-								mLogger.info("Pregeneration enabled: Leaving highest seen instance at " + mHighestSeenInstance + " which is already higher than value " + rboard + " from RBoard");
-							}
-						}
-					} catch (Exception ex) {
-						mLogger.severe("Caught exception while fetching highest seen instance: " + ex.getMessage());
-						ex.printStackTrace();
-					}
-					refreshPregeneration(15 * 20); // 15s delay
-				});
-			} else {
-				refreshPregeneration(15 * 20); // 15s delay
-			}
-		}
 	}
 
 	/**
@@ -292,56 +258,6 @@ public class WorldManagementListener implements Listener {
 			throw new Exception("Tried to sort player but instance score is 0");
 		}
 
-		World world = MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, false, WorldManagementPlugin.allowInstanceAutocreation());
-
-		if (score > mHighestSeenInstance) {
-			mHighestSeenInstance = score;
-			refreshPregeneration(5 * 20); // 5s delay
-		}
-		return world;
-	}
-
-	/**
-	 * Starts pregeneration of instances that are missing relative to mHighestSeenInstance.
-	 * <p>
-	 * Can run this sync or async. Will only pregenerate if configured to do so.
-	 */
-	private void refreshPregeneration(int baseDelayTicks) {
-		if (WorldManagementPlugin.getPregeneratedInstances() > 0) {
-			mLogger.info("Refreshing instance pregeneration: Highest seen instance: " + mHighestSeenInstance);
-
-			Bukkit.getScheduler().runTaskAsynchronously(mPlugin, () -> {
-				MonumentaWorldManagementAPI.getAvailableWorlds(); // Updates the cache
-
-				for (int i = 0; i < WorldManagementPlugin.getPregeneratedInstances(); i++) {
-					int instance = mHighestSeenInstance + 1 + i;
-					String name = WorldManagementPlugin.getBaseWorldName() + instance;
-
-					pregenerate(name, baseDelayTicks + 15 * 20 * i); // Run tasks 15s apart, just to avoid overloading the startup process
-				}
-			});
-		}
-	}
-
-	/**
-	 * Causes a world to be pregenerated if it doesn't exist.
-	 * <p>
-	 * Can run this sync or async. Will test the cache before unnecessarily scheduling world generation
-	 */
-	private void pregenerate(String name, int delayTicks) {
-		mLogger.fine("Requested pregeneration of instance " + name);
-		if (!MonumentaWorldManagementAPI.isCachedWorldAvailable(name)) {
-			Bukkit.getScheduler().runTaskLaterAsynchronously(mPlugin, () -> {
-				mLogger.info("Starting pregeneration of instance " + name);
-				try {
-					MonumentaWorldManagementAPI.ensureWorldLoaded(name, true, true);
-					mLogger.info("Instance " + name + " pregeneration complete");
-				} catch (Exception ex) {
-					mLogger.severe("Failed to pregenerate world " + name + ": " + ex.getMessage());
-					ex.printStackTrace();
-				}
-			}, delayTicks);
-			mLogger.fine("Scheduled pregeneration of instance " + name + " which will start in " + delayTicks + " ticks");
-		}
+		return MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, false, WorldManagementPlugin.allowInstanceAutocreation());
 	}
 }

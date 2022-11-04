@@ -25,8 +25,6 @@ public class WorldManagementPlugin extends JavaPlugin {
 	private static boolean mIsInstanced = false;
 	private static boolean mAllowInstanceAutocreation = false;
 	private static int mPregeneratedInstances = 0;
-	private static @Nullable String mPregeneratedRBoardName = null;
-	private static @Nullable String mPregeneratedRBoardKey = null;
 	private static int mUnloadInactiveWorldAfterTicks = 10 * 60 * 20;
 	private static String mInstanceObjective = "Instance";
 	private static @Nullable String mJoinInstanceCommand = null;
@@ -97,23 +95,9 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 		mPregeneratedInstances = config.getInt("pregenerated-instances", mPregeneratedInstances);
 		printConfig("pregenerated-instances", mPregeneratedInstances);
-		mPregeneratedRBoardName = config.getString("pregenerated-rboard-name", mPregeneratedRBoardName);
-		if (mPregeneratedRBoardName != null && (mPregeneratedRBoardName.equals("null") || mPregeneratedRBoardName.isEmpty())) {
-			mPregeneratedRBoardName = null;
-		}
-		mPregeneratedRBoardKey = config.getString("pregenerated-rboard-key", mPregeneratedRBoardKey);
-		if (mPregeneratedRBoardKey != null && (mPregeneratedRBoardKey.equals("null") || mPregeneratedRBoardKey.isEmpty())) {
-			mPregeneratedRBoardKey = null;
-		}
 		if (!mIsInstanced) {
 			mPregeneratedInstances = 0;
 		}
-		if (mPregeneratedRBoardName == null || mPregeneratedRBoardKey == null || mPregeneratedInstances == 0) {
-			mPregeneratedRBoardName = null;
-			mPregeneratedRBoardKey = null;
-		}
-		printConfig("pregenerated-rboard-name", mPregeneratedRBoardName);
-		printConfig("pregenerated-rboard-key", mPregeneratedRBoardKey);
 
 		mUnloadInactiveWorldAfterTicks = config.getInt("unload-inactive-world-after-ticks", mUnloadInactiveWorldAfterTicks);
 		printConfig("unload-inactive-world-after-ticks", mUnloadInactiveWorldAfterTicks);
@@ -175,14 +159,6 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 	public static int getPregeneratedInstances() {
 		return mPregeneratedInstances;
-	}
-
-	public static @Nullable String getPregeneratedRBoardName() {
-		return mPregeneratedRBoardName;
-	}
-
-	public static @Nullable String getPregeneratedRBoardKey() {
-		return mPregeneratedRBoardKey;
 	}
 
 	public static int getUnloadInactiveWorldAfterTicks() {

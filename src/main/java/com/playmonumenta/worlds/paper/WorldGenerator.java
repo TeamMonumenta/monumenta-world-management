@@ -76,11 +76,11 @@ public class WorldGenerator {
 		return target.isDirectory() && new File(target, "level.dat").isFile();
 	}
 
-	public World getWorldInstance(String worldName) {
+	public void getWorldInstance(String worldName) {
 		MMLog.fine("Preparing world " + worldName);
 		if (worldExists(worldName)) {
 			MMLog.fine("World already exists: " + worldName);
-			return Bukkit.getWorld(worldName);
+			return;
 		}
 
 		// Wait for next world to be ready
@@ -107,7 +107,6 @@ public class WorldGenerator {
 		}
 
 		schedulePregeneration();
-		return Bukkit.getWorld(worldName);
 	}
 
 	private CompletableFuture<String> generateWorldInstance() {
