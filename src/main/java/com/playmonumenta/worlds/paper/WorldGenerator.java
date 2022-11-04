@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import javax.annotation.Nullable;
 import org.bukkit.Bukkit;
@@ -17,7 +18,6 @@ public class WorldGenerator {
 	private static final String GENERATING_SUFFIX = ".generating";
 	// TODO Rework to handle multiple template worlds
 	private final LinkedBlockingQueue<String> mPregeneratedWorlds = new LinkedBlockingQueue<>();
-	private final ConcurrentSkipListMap<String, CompletableFuture<String>> mPregeneratingWorlds = new ConcurrentSkipListMap<>();
 	private @Nullable BukkitRunnable mPregenScheduler = null;
 
 	private WorldGenerator() {
@@ -71,10 +71,6 @@ public class WorldGenerator {
 		return mPregeneratedWorlds.size();
 	}
 
-	public int pregeneratingInstances() {
-		return mPregeneratingWorlds.size();
-	}
-
 	public static boolean worldExists(String name) {
 		File target = new File(name);
 		return target.isDirectory() && new File(target, "level.dat").isFile();
@@ -92,6 +88,10 @@ public class WorldGenerator {
 		while (pregeneratedWorldName == null) {
 			try {
 				pregeneratedWorldName = mPregeneratedWorlds.take();
+				if (!worldExists(pregeneratedWorldName)) {
+					pregeneratedWorldName = null;
+					schedulePregeneration();
+				}
 			} catch (InterruptedException ignored) {
 				// If an interrupt prevents us from getting the next world, try again
 			}
@@ -126,15 +126,9 @@ public class WorldGenerator {
 
 		String pregenBase = PREGEN_PREFIX + WorldManagementPlugin.getBaseWorldName();
 		String pregenName = null;
-		boolean foundSlot = false;
 		for (int pregenIndex = 0; pregenIndex < WorldManagementPlugin.getPregeneratedInstances(); pregenIndex++) {
 			pregenName = pregenBase + pregenIndex;
-			if (mPregeneratedWorlds.contains(pregenName)) {
-				continue;
-			}
-			CompletableFuture<String> existingFuture = mPregeneratingWorlds.computeIfAbsent(pregenName, key -> future);
-			if (existingFuture == future) {
-				foundSlot = true;
+			if (!mPregeneratedWorlds.contains(pregenName)) {
 				break;
 			}
 		}
@@ -142,11 +136,6 @@ public class WorldGenerator {
 		if (pregenName == null) {
 			MMLog.warning("Pregen instance limit <= 0!");
 			future.completeExceptionally(new Exception("Pregen instance limit <= 0!"));
-			return future;
-		}
-		if (!foundSlot) {
-			MMLog.info("All pregen slots filled.");
-			future.completeExceptionally(new Exception("All pregen slots filled."));
 			return future;
 		}
 
@@ -175,7 +164,6 @@ public class WorldGenerator {
 
 				// Mark as complete and return pregen world name
 				mPregeneratedWorlds.add(pregeneratedWorldName);
-				mPregeneratingWorlds.remove(pregeneratedWorldName);
 				MMLog.info("Finished pregenerating " + pregeneratedWorldName);
 				future.complete(pregeneratedWorldName);
 			} catch (Exception ex) {
@@ -200,17 +188,28 @@ public class WorldGenerator {
 		mPregenScheduler = new BukkitRunnable() {
 			@Override
 			public void run() {
-				if (pregeneratedInstances() + pregeneratingInstances() >= WorldManagementPlugin.getPregeneratedInstances()) {
-					MMLog.info("All pregeneration started (" + pregeneratingInstances() + ") or complete (" + pregeneratedInstances() + ").");
-					mPregenScheduler = null;
-					this.cancel();
-					return;
+				while (pregeneratedInstances() < WorldManagementPlugin.getPregeneratedInstances()) {
+					CompletableFuture<String> future = generateWorldInstance();
+					while (true) {
+						try {
+							future.get();
+							break;
+						} catch (InterruptedException ignored) {
+							// Ignore interrupt and try again
+						} catch (ExecutionException ex) {
+							MMLog.warning("Got exception during instance pregen: " + ex.getMessage());
+							mPregenScheduler = null;
+							this.cancel();
+							break;
+						}
+					}
 				}
 
-				// TODO Use future?
-				generateWorldInstance();
+				MMLog.info("All pregeneration complete (" + pregeneratedInstances() + ").");
+				mPregenScheduler = null;
+				this.cancel();
 			}
 		};
-		mPregenScheduler.runTaskTimerAsynchronously(WorldManagementPlugin.getInstance(), 0, 15 * 20);
+		mPregenScheduler.runTaskAsynchronously(WorldManagementPlugin.getInstance());
 	}
 }
