@@ -63,22 +63,20 @@ public class WorldManagementListener implements Listener {
 				/* World should already be loaded, just need to grab it */
 				World world = MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, false, WorldManagementPlugin.allowInstanceAutocreation());
 
-				if (event.getRespawnLocation().getWorld().equals(world)) {
-					/* Already respawning on this world, don't need to change location */
-					return;
-				}
-
-				/* Modify the event so the player respawns on this same world at spawn */
-				event.setRespawnLocation(world.getSpawnLocation());
-
 				// RESPAWN: The player is respawning in this world after having (probably) died there
 				if (WorldManagementPlugin.getRespawnInstanceCommand() != null) {
 					Bukkit.getScheduler().runTaskLater(mPlugin, () -> {
+						// Note that this will run after the player has been moved to the correct world, since it runs a tick later
 						if (Bukkit.getOnlinePlayers().contains(player)) {
 							mLogger.fine("Running respawn command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
 							Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRespawnInstanceCommand());
 						}
 					}, 1);
+				}
+
+				if (!event.getRespawnLocation().getWorld().equals(world)) {
+					/* Modify the event so the player respawns on this same world at spawn */
+					event.setRespawnLocation(world.getSpawnLocation());
 				}
 			} catch (Exception ex) {
 				String msg = "Failed to load your assigned world instance " + score + ": " + ex.getMessage();
