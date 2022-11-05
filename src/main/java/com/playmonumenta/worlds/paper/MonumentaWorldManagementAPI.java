@@ -434,7 +434,7 @@ public class MonumentaWorldManagementAPI {
 				List<Chunk> forceLoadedChunks = new ArrayList<>(world.getForceLoadedChunks());
 				List<Chunk> chunksLeft;
 				if (forceLoadedChunks.isEmpty()) {
-					chunksLeft = new ArrayList<>(world.getForceLoadedChunks());
+					chunksLeft = Arrays.asList(world.getLoadedChunks());
 				} else {
 					Set<Long> forceLoadedKeys = new TreeSet<>();
 					for (Chunk chunk : forceLoadedChunks) {
