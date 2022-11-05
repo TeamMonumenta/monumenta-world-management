@@ -14,6 +14,7 @@ import com.playmonumenta.worlds.common.CustomLogger;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jetbrains.annotations.NotNull;
 
 public class WorldManagementPlugin extends JavaPlugin {
 	private static @Nullable WorldManagementPlugin INSTANCE = null;
@@ -24,8 +25,6 @@ public class WorldManagementPlugin extends JavaPlugin {
 	private static boolean mIsInstanced = false;
 	private static boolean mAllowInstanceAutocreation = false;
 	private static int mPregeneratedInstances = 0;
-	private static @Nullable String mPregeneratedRBoardName = null;
-	private static @Nullable String mPregeneratedRBoardKey = null;
 	private static int mUnloadInactiveWorldAfterTicks = 10 * 60 * 20;
 	private static String mInstanceObjective = "Instance";
 	private static @Nullable String mJoinInstanceCommand = null;
@@ -35,6 +34,7 @@ public class WorldManagementPlugin extends JavaPlugin {
 	private static String mCopyWorldCommand = "cp -a";
 
 	private @Nullable WorldManagementListener mListener = null;
+	private @Nullable WorldGenerator mGenerator = null;
 
 	@Override
 	public void onLoad() {
@@ -47,6 +47,7 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 		loadConfig();
 
+		mGenerator = WorldGenerator.getInstance();
 		mListener = new WorldManagementListener(this);
 		Bukkit.getPluginManager().registerEvents(mListener, this);
 
@@ -94,23 +95,9 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 		mPregeneratedInstances = config.getInt("pregenerated-instances", mPregeneratedInstances);
 		printConfig("pregenerated-instances", mPregeneratedInstances);
-		mPregeneratedRBoardName = config.getString("pregenerated-rboard-name", mPregeneratedRBoardName);
-		if (mPregeneratedRBoardName != null && (mPregeneratedRBoardName.equals("null") || mPregeneratedRBoardName.isEmpty())) {
-			mPregeneratedRBoardName = null;
-		}
-		mPregeneratedRBoardKey = config.getString("pregenerated-rboard-key", mPregeneratedRBoardKey);
-		if (mPregeneratedRBoardKey != null && (mPregeneratedRBoardKey.equals("null") || mPregeneratedRBoardKey.isEmpty())) {
-			mPregeneratedRBoardKey = null;
-		}
 		if (!mIsInstanced) {
 			mPregeneratedInstances = 0;
 		}
-		if (mPregeneratedRBoardName == null || mPregeneratedRBoardKey == null || mPregeneratedInstances == 0) {
-			mPregeneratedRBoardName = null;
-			mPregeneratedRBoardKey = null;
-		}
-		printConfig("pregenerated-rboard-name", mPregeneratedRBoardName);
-		printConfig("pregenerated-rboard-key", mPregeneratedRBoardKey);
 
 		mUnloadInactiveWorldAfterTicks = config.getInt("unload-inactive-world-after-ticks", mUnloadInactiveWorldAfterTicks);
 		printConfig("unload-inactive-world-after-ticks", mUnloadInactiveWorldAfterTicks);
@@ -174,14 +161,6 @@ public class WorldManagementPlugin extends JavaPlugin {
 		return mPregeneratedInstances;
 	}
 
-	public static @Nullable String getPregeneratedRBoardName() {
-		return mPregeneratedRBoardName;
-	}
-
-	public static @Nullable String getPregeneratedRBoardKey() {
-		return mPregeneratedRBoardKey;
-	}
-
 	public static int getUnloadInactiveWorldAfterTicks() {
 		return mUnloadInactiveWorldAfterTicks;
 	}
@@ -216,7 +195,7 @@ public class WorldManagementPlugin extends JavaPlugin {
 	}
 
 	@Override
-	public Logger getLogger() {
+	public @NotNull Logger getLogger() {
 		if (mLogger == null) {
 			mLogger = new CustomLogger(super.getLogger(), Level.INFO);
 		}
@@ -231,6 +210,16 @@ public class WorldManagementPlugin extends JavaPlugin {
 	/* If this ever returned null everything would explode anyway, no reason to add error handling around this */
 	@SuppressWarnings("NullAway")
 	protected static WorldManagementPlugin getInstance() {
+		if (INSTANCE == null) {
+			throw new RuntimeException("WorldManagementPlugin accessed before loading");
+		}
 		return INSTANCE;
+	}
+
+	protected WorldGenerator getWorldGenerator() {
+		if (mGenerator == null) {
+			mGenerator = WorldGenerator.getInstance();
+		}
+		return mGenerator;
 	}
 }
