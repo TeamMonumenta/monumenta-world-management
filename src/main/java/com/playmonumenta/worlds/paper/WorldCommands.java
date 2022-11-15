@@ -12,12 +12,8 @@ import dev.jorel.commandapi.arguments.LocationArgument;
 import dev.jorel.commandapi.arguments.LocationType;
 import dev.jorel.commandapi.arguments.StringArgument;
 import dev.jorel.commandapi.exceptions.WrapperCommandSyntaxException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -27,6 +23,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -286,6 +283,28 @@ public class WorldCommands {
 				}
 			})
 			.register();
+
+		new CommandAPICommand("tptoworld")
+			.withPermission(CommandPermission.fromString("monumenta.worldmanagement.tptoworld"))
+			.withArguments(new EntitySelectorArgument("targets", EntitySelector.MANY_PLAYERS))
+			.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
+			.withArguments(new LocationArgument("location"))
+			.executes((sender, args) -> {
+				try {
+					teleportToWorld(sender, (Collection<Entity>)args[0], (String) args[1], (Location) args[2]);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			})
+			.register();
+	}
+
+	public static void teleportToWorld(CommandSender sender, Collection<Entity> targets, String world, Location loc) throws Exception {
+		World actualWorld = MonumentaWorldManagementAPI.ensureWorldLoaded(world, false, false);
+		Location newLoc = new Location(actualWorld, loc.getX(), loc.getY(), loc.getZ());
+		for (Entity player : targets) {
+			player.teleport(newLoc);
+		}
 	}
 
 	private static void forceWorld(CommandSender sender, Player player, String worldName) throws WrapperCommandSyntaxException {
