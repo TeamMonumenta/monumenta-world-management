@@ -12,7 +12,6 @@ import dev.jorel.commandapi.arguments.LocationArgument;
 import dev.jorel.commandapi.arguments.LocationType;
 import dev.jorel.commandapi.arguments.StringArgument;
 import dev.jorel.commandapi.exceptions.WrapperCommandSyntaxException;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
