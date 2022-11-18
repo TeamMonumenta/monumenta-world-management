@@ -56,7 +56,8 @@ public class WorldManagementListener implements Listener {
 		Player player = event.getPlayer();
 		int score = ScoreboardUtils.getScoreboardValue(player, WorldManagementPlugin.getInstanceObjective()).orElse(0);
 		if (score <= 0) {
-			player.sendMessage(ChatColor.RED + "You respawned on an instanced world without an instance assigned to you. Unless you are an operator, this is probably a bug");
+			// TODO: Disabled for now because players are seeing it... but this needs different config to handle this path than currently exists
+			//player.sendMessage(ChatColor.RED + "You respawned on an instanced world without an instance assigned to you. Unless you are an operator, this is probably a bug");
 		} else {
 			try {
 				/* World should already be loaded, just need to grab it */
