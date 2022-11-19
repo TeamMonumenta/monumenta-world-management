@@ -164,45 +164,16 @@ public class WorldCommands {
 					.withArguments(new StringArgument("copyFromWorldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
 					.withArguments(new StringArgument("newWorldName"))
 					.executes((sender, args) -> {
-						String copyFromWorldName = (String)args[0];
+						String fromWorldName = (String)args[0];
 						String newWorldName = (String)args[1];
 
-						if (MonumentaWorldManagementAPI.isWorldAvailable(newWorldName)) {
-							sender.sendMessage("World '" + newWorldName + "' already exists, this command is for creating new worlds");
-							return;
-						}
-
-						if (!MonumentaWorldManagementAPI.isWorldAvailable(copyFromWorldName)) {
-							sender.sendMessage("Copy-from world '" + copyFromWorldName + "' does not exist");
-							return;
-						}
-
-						if (Bukkit.getWorld(copyFromWorldName) != null) {
-							sender.sendMessage("Copy-from world '" + copyFromWorldName + "' is already loaded, must unload it first");
-							return;
-						}
-
-						sender.sendMessage("Started copying world '" + copyFromWorldName + "' to '" + newWorldName + "'");
-						Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), () -> {
-							/* Copy world from the specified value */
-							int exitVal = -1;
-							String errMsg = "";
-							try {
-								// Run and wait for completion
-								Process process = Runtime.getRuntime().exec(WorldManagementPlugin.getCopyWorldCommand() + " " + copyFromWorldName + " " + newWorldName);
-								exitVal = process.waitFor();
-							} catch (Exception ex) {
-								errMsg = ex.getMessage();
-							}
-
-							String msg;
-							if (exitVal != 0) {
-								msg = "Failed to copy world '" + copyFromWorldName + "' to '" + newWorldName + "': " + exitVal + " " + errMsg;
+						sender.sendMessage("Attempting to copy world '" + fromWorldName + "' to '" + newWorldName + "'...");
+						MonumentaWorldManagementAPI.copyWorld(fromWorldName, newWorldName).whenComplete((unused, ex) -> {
+							if (ex != null) {
+								sender.sendMessage(ex.getMessage());
 							} else {
-								msg = "Successfully copied world '" + copyFromWorldName + "' to '" + newWorldName + "'";
+								sender.sendMessage("Successfully copied world '" + fromWorldName + "' to '" + newWorldName + "'");
 							}
-
-							Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> sender.sendMessage(msg));
 						});
 					}))
 				.withSubcommand(new CommandAPICommand("deleteworld")

@@ -281,6 +281,56 @@ public class MonumentaWorldManagementAPI {
 	}
 
 	/**
+	 * Copies a world
+	 *
+	 * Does most of its work on an async thread, and completes the future on the main thread when done.
+	 *
+	 * Checks that the source world exists and is not loaded
+	 *
+	 * Suggest using .whenComplete((unused, ex) -> your code) to do something on the main thread when done
+	 */
+	public static CompletableFuture<Void> copyWorld(String fromWorldName, String newWorldName) {
+		CompletableFuture<Void> future = new CompletableFuture<>();
+
+		if (MonumentaWorldManagementAPI.isWorldAvailable(newWorldName)) {
+			future.completeExceptionally(new Exception("World '" + newWorldName + "' already exists, this command is for creating new worlds"));
+			return future;
+		}
+
+		if (!MonumentaWorldManagementAPI.isWorldAvailable(fromWorldName)) {
+			future.completeExceptionally(new Exception("Copy-from world '" + fromWorldName + "' does not exist"));
+			return future;
+		}
+
+		if (Bukkit.getWorld(fromWorldName) != null) {
+			future.completeExceptionally(new Exception("Copy-from world '" + fromWorldName + "' is already loaded, must unload it first"));
+			return future;
+		}
+
+		Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), () -> {
+			try {
+				// Copy and wait for completion
+				Process process = Runtime.getRuntime().exec(WorldManagementPlugin.getCopyWorldCommand() + " " + fromWorldName + " " + newWorldName);
+				int exitVal = process.waitFor();
+
+				if (exitVal != 0) {
+					throw new Exception("Failed to copy world '" + fromWorldName + "' to '" + newWorldName + "': " + exitVal);
+				}
+
+				getAvailableWorlds(); // Update the cache
+
+				Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
+					future.complete(null);
+				});
+			} catch (Exception ex) {
+				future.completeExceptionally(ex);
+				ex.printStackTrace();
+			}
+		});
+
+		return future;
+	}
+	/**
 	 * Deletes a world.
 	 *
 	 * Does most of its work on an async thread, and completes the future on the main thread when done.
