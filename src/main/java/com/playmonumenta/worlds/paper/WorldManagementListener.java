@@ -60,7 +60,7 @@ public class WorldManagementListener implements Listener {
 		} else {
 			try {
 				/* World should already be loaded, just need to grab it */
-				World world = MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, false, WorldManagementPlugin.allowInstanceAutocreation());
+				World world = MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, WorldManagementPlugin.allowInstanceAutocreation());
 
 				// RESPAWN: The player is respawning in this world after having (probably) died there
 				if (WorldManagementPlugin.getRespawnInstanceCommand() != null) {
@@ -97,7 +97,7 @@ public class WorldManagementListener implements Listener {
 			if (lastSavedWorldName != null) {
 				// If not an instanced server, still try to load the player's last world & put them there
 				try {
-					World world = MonumentaWorldManagementAPI.ensureWorldLoaded(lastSavedWorldName, false, false);
+					World world = MonumentaWorldManagementAPI.ensureWorldLoaded(lastSavedWorldName, false);
 					event.setWorld(world);
 				} catch (Exception ex) {
 					String msg = "Failed to load the last world you were on (" + lastSavedWorldName + "): " + ex.getMessage();
@@ -256,6 +256,6 @@ public class WorldManagementListener implements Listener {
 			throw new Exception("Tried to sort player but instance score is 0");
 		}
 
-		return MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, false, WorldManagementPlugin.allowInstanceAutocreation());
+		return MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, WorldManagementPlugin.allowInstanceAutocreation());
 	}
 }

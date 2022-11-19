@@ -100,7 +100,7 @@ public class WorldCommands {
 						String worldName = (String)args[0];
 
 						try {
-							MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, false, false);
+							MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, false);
 						} catch (Exception ex) {
 							CommandAPI.fail(ex.getMessage());
 						}
@@ -151,31 +151,24 @@ public class WorldCommands {
 							return;
 						}
 
-						sender.sendMessage("Started creating world '" + worldName + "' from master copy");
-						Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), () -> {
-							try {
-								MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, true, true);
-								Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
-									sender.sendMessage("Created and loaded world '" + worldName + "' from master copy");
-								});
-							} catch (Exception ex) {
-								Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
-									sender.sendMessage("Failed to create world '" + worldName + "': " + ex.getMessage());
-								});
-							}
-						});
-
+						sender.sendMessage("Started creating world '" + worldName + "' from template");
+						try {
+							MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, true);
+							sender.sendMessage("Created and loaded world '" + worldName + "' from master copy");
+						} catch (Exception ex) {
+							sender.sendMessage("Failed to create world '" + worldName + "': " + ex.getMessage());
+						}
 					}))
-				.withSubcommand(new CommandAPICommand("createworld")
-					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.createworld"))
-					.withArguments(new StringArgument("worldName"))
+				.withSubcommand(new CommandAPICommand("copyworld")
+					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.copyworld"))
 					.withArguments(new StringArgument("copyFromWorldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
+					.withArguments(new StringArgument("newWorldName"))
 					.executes((sender, args) -> {
-						String worldName = (String)args[0];
-						String copyFromWorldName = (String)args[1];
+						String copyFromWorldName = (String)args[0];
+						String newWorldName = (String)args[1];
 
-						if (MonumentaWorldManagementAPI.isWorldAvailable(worldName)) {
-							sender.sendMessage("World '" + worldName + "' already exists, this command is for creating new worlds");
+						if (MonumentaWorldManagementAPI.isWorldAvailable(newWorldName)) {
+							sender.sendMessage("World '" + newWorldName + "' already exists, this command is for creating new worlds");
 							return;
 						}
 
@@ -184,18 +177,32 @@ public class WorldCommands {
 							return;
 						}
 
-						sender.sendMessage("Started creating world '" + worldName + "' using '" + copyFromWorldName + "' as the template");
+						if (Bukkit.getWorld(copyFromWorldName) != null) {
+							sender.sendMessage("Copy-from world '" + copyFromWorldName + "' is already loaded, must unload it first");
+							return;
+						}
+
+						sender.sendMessage("Started copying world '" + copyFromWorldName + "' to '" + newWorldName + "'");
 						Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), () -> {
+							/* Copy world from the specified value */
+							int exitVal = -1;
+							String errMsg = "";
 							try {
-								MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, true, true, copyFromWorldName);
-								Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
-									sender.sendMessage("Created and loaded world '" + worldName + "' using '" + copyFromWorldName + "' as the template");
-								});
+								// Run and wait for completion
+								Process process = Runtime.getRuntime().exec(WorldManagementPlugin.getCopyWorldCommand() + " " + copyFromWorldName + " " + newWorldName);
+								exitVal = process.waitFor();
 							} catch (Exception ex) {
-								Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
-									sender.sendMessage("Failed to create world '" + worldName + "': " + ex.getMessage());
-								});
+								errMsg = ex.getMessage();
 							}
+
+							String msg;
+							if (exitVal != 0) {
+								msg = "Failed to copy world '" + copyFromWorldName + "' to '" + newWorldName + "': " + exitVal + " " + errMsg;
+							} else {
+								msg = "Successfully copied world '" + copyFromWorldName + "' to '" + newWorldName + "'";
+							}
+
+							Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> sender.sendMessage(msg));
 						});
 					}))
 				.withSubcommand(new CommandAPICommand("deleteworld")
@@ -305,7 +312,7 @@ public class WorldCommands {
 	}
 
 	public static void teleportToWorld(CommandSender sender, Collection<Entity> targets, String world, Location loc) throws Exception {
-		World actualWorld = MonumentaWorldManagementAPI.ensureWorldLoaded(world, false, false);
+		World actualWorld = MonumentaWorldManagementAPI.ensureWorldLoaded(world, false);
 		Location newLoc = new Location(actualWorld, loc.getX(), loc.getY(), loc.getZ());
 		for (Entity player : targets) {
 			player.teleport(newLoc);
@@ -317,7 +324,7 @@ public class WorldCommands {
 		player.saveData();
 		Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
 			try {
-				World newWorld = MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, false, false);
+				World newWorld = MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, false);
 
 				MonumentaRedisSyncAPI.getPlayerWorldData(player, newWorld).applyToPlayer(player);
 			} catch (Exception ex) {
@@ -385,7 +392,7 @@ public class WorldCommands {
 						// Load world
 						World world;
 						try {
-							world = MonumentaWorldManagementAPI.ensureWorldLoaded(mLastWorldName, false, false);
+							world = MonumentaWorldManagementAPI.ensureWorldLoaded(mLastWorldName, false);
 						} catch (Exception ex) {
 							// Severe error, fail and stop loading new worlds so it doesn't get missed
 							log.severe("Failed to load world '" + mLastWorldName + "': " + ex.getMessage());
