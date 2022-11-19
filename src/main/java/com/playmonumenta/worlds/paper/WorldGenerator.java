@@ -201,7 +201,7 @@ public class WorldGenerator {
 							MMLog.warning("Got exception during instance pregen: " + ex.getMessage());
 							mPregenScheduler = null;
 							this.cancel();
-							break;
+							return;
 						}
 					}
 				}
