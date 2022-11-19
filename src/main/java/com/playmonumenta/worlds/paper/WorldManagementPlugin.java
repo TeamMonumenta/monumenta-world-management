@@ -90,7 +90,7 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 		boolean deprecatedInstanced = config.getBoolean("is-instanced", false);
 		if (deprecatedInstanced) {
-			getLogger().warning("config 'is-instanced' is deprecated, please use the newer more specific config options"));
+			getLogger().warning("config 'is-instanced' is deprecated, please use the newer more specific config options");
 			mSortWorldByScoreOnJoin = true;
 			mSortWorldByScoreOnRespawn = true;
 		}
@@ -106,6 +106,9 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 		mPregeneratedInstances = config.getInt("pregenerated-instances", mPregeneratedInstances);
 		printConfig("pregenerated-instances", mPregeneratedInstances);
+		if (mPregeneratedInstances <= 0) {
+			getLogger().warning("Highly recommend setting pregenerated-instances > 0. Instance autocreation may not work at all without this");
+		}
 
 		mUnloadInactiveWorldAfterTicks = config.getInt("unload-inactive-world-after-ticks", mUnloadInactiveWorldAfterTicks);
 		printConfig("unload-inactive-world-after-ticks", mUnloadInactiveWorldAfterTicks);

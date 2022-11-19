@@ -198,7 +198,7 @@ public class MonumentaWorldManagementAPI {
 	 * ensureWorldLoaded, but will use the config-specified template world if copying is needed.
 	 */
 	public static World ensureWorldLoaded(String worldName, boolean calledAsync, boolean copyTemplateIfNotExist) throws Exception {
-		return ensureWorldLoaded(worldName, calledAsync, copyTemplateIfNotExist, WorldManagementPlugin.getTemplateWorldName());
+		return ensureWorldLoaded(worldName, calledAsync, copyTemplateIfNotExist, null);
 	}
 
 	/**
@@ -218,13 +218,13 @@ public class MonumentaWorldManagementAPI {
 	 *
 	 * XXX WARNING: The locking for this function is complex - take care making even small changes to control flow
 	 */
-	public static World ensureWorldLoaded(String worldName, boolean calledAsync, boolean copyTemplateIfNotExist, String copyFromWorldName) throws Exception {
+	public static World ensureWorldLoaded(String worldName, boolean calledAsync, boolean copyTemplateIfNotExist, @Nullable String copyFromWorldName) throws Exception {
 		WorldManagementPlugin plugin = WorldManagementPlugin.getInstance();
 		if (plugin == null) {
 			throw new Exception("MonumentaWorldManagement plugin is not loaded");
 		}
 		Logger logger = plugin.getLogger();
-		logger.fine("ensureWorldLoaded enter: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " thread=" + Thread.currentThread().getName());
+		logger.fine("ensureWorldLoaded enter: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + (copyFromWorldName == null ? "" : " copyFromWorldName=" + copyFromWorldName) + " thread=" + Thread.currentThread().getName());
 
 		/* Note this may block the main thread! It's necessary though */
 		int lockFail = 0;
@@ -232,7 +232,7 @@ public class MonumentaWorldManagementAPI {
 		/* ----- TRY LOCK ----- */
 		ILoadWorldTask task;
 		while ((task = LOADING_WORLDS.putIfAbsent(worldName, DummyLoadWorldTask.PLACEHOLDER)) != null) {
-			logger.fine("ensureWorldLoaded lockfail: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " lockFail=" + lockFail + " thread=" + Thread.currentThread().getName());
+			logger.fine("ensureWorldLoaded lockfail: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + (copyFromWorldName == null ? "" : " copyFromWorldName=" + copyFromWorldName) + " lockFail=" + lockFail + " thread=" + Thread.currentThread().getName());
 
 			// This key already exists (failed to lock)
 			if (!calledAsync) {
@@ -262,7 +262,7 @@ public class MonumentaWorldManagementAPI {
 			}
 		}
 
-		logger.fine("ensureWorldLoaded locked: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " thread=" + Thread.currentThread().getName());
+		logger.fine("ensureWorldLoaded locked: worldName=" + worldName + " calledAsync=" + calledAsync + (copyFromWorldName == null ? "" : " copyFromWorldName=" + copyFromWorldName) + " copyFromWorldName=" + copyFromWorldName + " thread=" + Thread.currentThread().getName());
 
 		/* ----- LOCK'ed after this point ----- */
 
@@ -310,18 +310,18 @@ public class MonumentaWorldManagementAPI {
 		if (newWorld != null) {
 			/* +++++ UNLOCK +++++ */
 			LOADING_WORLDS.remove(worldName);
-			logger.fine("ensureWorldLoaded found existing unlocked: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " thread=" + Thread.currentThread().getName());
+			logger.fine("ensureWorldLoaded found existing unlocked: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + (copyFromWorldName == null ? "" : " copyFromWorldName=" + copyFromWorldName) + " thread=" + Thread.currentThread().getName());
 			return newWorld;
 		}
 
-		logger.fine("ensureWorldLoaded world not loaded: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " thread=" + Thread.currentThread().getName());
+		logger.fine("ensureWorldLoaded world not loaded: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + (copyFromWorldName == null ? "" : " copyFromWorldName=" + copyFromWorldName) + " thread=" + Thread.currentThread().getName());
 
 		//TODO Check redis to make sure world isn't loaded or created elsewhere
 
 		/* Copy world if it doesn't exist */
 		File worldFolder = new File(worldName);
 		if (worldFolder.isDirectory()) {
-			logger.fine("ensureWorldLoaded folder exists: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " thread=" + Thread.currentThread().getName());
+			logger.fine("ensureWorldLoaded folder exists: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + (copyFromWorldName == null ? "" : " copyFromWorldName=" + copyFromWorldName) + " thread=" + Thread.currentThread().getName());
 		} else {
 			/* Not allowed to create so return null */
 			if (!copyTemplateIfNotExist) {
@@ -329,7 +329,21 @@ public class MonumentaWorldManagementAPI {
 				throw new Exception("World '" + worldName + "' does not exist and copyTemplateIfNotExist is false");
 			}
 
-			plugin.getWorldGenerator().getWorldInstance(worldName);
+			if (copyFromWorldName != null) {
+				/* Copy world from the specified value */
+				Process process = Runtime.getRuntime().exec(WorldManagementPlugin.getCopyWorldCommand() + " " + copyFromWorldName + " " + worldName);
+
+				int exitVal = process.waitFor();
+				if (exitVal != 0) {
+					String msg = "Failed to copy world '" + copyFromWorldName + "' to '" + worldName + "': " + exitVal;
+					logger.severe(msg);
+					LOADING_WORLDS.remove(worldName); /* +++++ UNLOCK +++++ */
+					throw new Exception(msg);
+				}
+			} else {
+				/* Use pregenerated instances */
+				plugin.getWorldGenerator().getWorldInstance(worldName);
+			}
 
 			if (calledAsync) {
 				Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
@@ -341,7 +355,7 @@ public class MonumentaWorldManagementAPI {
 				AVAILABLE_WORLDS_CACHE[AVAILABLE_WORLDS_CACHE.length - 1] = worldName;
 			}
 
-			logger.fine("ensureWorldLoaded created new: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " thread=" + Thread.currentThread().getName());
+			logger.fine("ensureWorldLoaded created new: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + (copyFromWorldName == null ? "" : " copyFromWorldName=" + copyFromWorldName) + " thread=" + Thread.currentThread().getName());
 		}
 
 		if (calledAsync) {
@@ -358,7 +372,7 @@ public class MonumentaWorldManagementAPI {
 			 * main thread is already in this function waiting for the result (meaning no tasks can be processed)
 			 */
 			Bukkit.getScheduler().runTask(plugin, () -> {
-				logger.fine("ensureWorldLoaded createWorld runNow(): worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " thread=" + Thread.currentThread().getName());
+				logger.fine("ensureWorldLoaded createWorld runNow(): worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + (copyFromWorldName == null ? "" : " copyFromWorldName=" + copyFromWorldName) + " thread=" + Thread.currentThread().getName());
 				createTask.runNow();
 			});
 
@@ -375,13 +389,13 @@ public class MonumentaWorldManagementAPI {
 			 * Block and wait for the task to complete. This will either get completed by the scheduled task here,
 			 * or another main-thread caller of this function requesting the same world
 			 */
-			logger.fine("ensureWorldLoaded async loadworld .get(): worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " thread=" + Thread.currentThread().getName());
+			logger.fine("ensureWorldLoaded async loadworld .get(): worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + (copyFromWorldName == null ? "" : " copyFromWorldName=" + copyFromWorldName) + " thread=" + Thread.currentThread().getName());
 			newWorld = createTask.get();
 		} else {
-			logger.fine("ensureWorldLoaded sync loadworld: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " thread=" + Thread.currentThread().getName());
+			logger.fine("ensureWorldLoaded sync loadworld: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + (copyFromWorldName == null ? "" : " copyFromWorldName=" + copyFromWorldName) + " thread=" + Thread.currentThread().getName());
 			newWorld = new WorldCreator(worldName).type(WorldType.NORMAL).generateStructures(false).environment(Environment.NORMAL).createWorld();
 		}
-		logger.fine("ensureWorldLoaded loaded world: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " copyFromWorldName=" + copyFromWorldName + " thread=" + Thread.currentThread().getName());
+		logger.fine("ensureWorldLoaded loaded world: worldName=" + worldName + " calledAsync=" + calledAsync + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + (copyFromWorldName == null ? "" : " copyFromWorldName=" + copyFromWorldName) + " thread=" + Thread.currentThread().getName());
 
 		LOADING_WORLDS.remove(worldName); /* +++++ UNLOCK +++++ */
 
