@@ -48,7 +48,7 @@ public class WorldManagementListener implements Listener {
 	 */
 	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
 	public void playerRespawnEvent(PlayerRespawnEvent event) {
-		if (!WorldManagementPlugin.isInstanced()) {
+		if (!WorldManagementPlugin.isSortWorldByScoreOnRespawn()) {
 			/* Not instanced, don't modify respawn location */
 			return;
 		}
@@ -56,8 +56,7 @@ public class WorldManagementListener implements Listener {
 		Player player = event.getPlayer();
 		int score = ScoreboardUtils.getScoreboardValue(player, WorldManagementPlugin.getInstanceObjective()).orElse(0);
 		if (score <= 0) {
-			// TODO: Disabled for now because players are seeing it... but this needs different config to handle this path than currently exists
-			//player.sendMessage(ChatColor.RED + "You respawned on an instanced world without an instance assigned to you. Unless you are an operator, this is probably a bug");
+			player.sendMessage(ChatColor.RED + "You respawned on an instanced world without an instance assigned to you. Unless you are an operator, this is probably a bug");
 		} else {
 			try {
 				/* World should already be loaded, just need to grab it */
@@ -92,7 +91,7 @@ public class WorldManagementListener implements Listener {
 		Player player = event.getPlayer();
 		mLogger.fine("playerJoinSetWorldEvent: player=" + player.getName() + " thread=" + Thread.currentThread().getName());
 
-		if (!WorldManagementPlugin.isInstanced()) {
+		if (!WorldManagementPlugin.isSortWorldByScoreOnJoin()) {
 			String lastSavedWorldName = event.getLastSavedWorldName();
 
 			if (lastSavedWorldName != null) {

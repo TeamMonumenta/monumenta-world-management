@@ -22,8 +22,9 @@ public class WorldGenerator {
 	private WorldGenerator() {
 		INSTANCE = this;
 
-		if (!WorldManagementPlugin.isInstanced()) {
-			MMLog.info("This shard is not instanced, shutting down world generator.");
+		if (WorldManagementPlugin.getPregeneratedInstances() <= 0) {
+			MMLog.info("pregenerated-instances <= 0, shutting down world generator.");
+			return;
 		}
 
 		// Get list of pregenerated/pregenerating worlds
@@ -179,7 +180,7 @@ public class WorldGenerator {
 	 * Start generating instances every 15 seconds, if they're not already generating
 	 */
 	public void schedulePregeneration() {
-		if (!WorldManagementPlugin.isInstanced()) {
+		if (WorldManagementPlugin.getPregeneratedInstances() <= 0) {
 			return;
 		}
 		if (mPregenScheduler != null) {
