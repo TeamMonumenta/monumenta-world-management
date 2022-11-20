@@ -122,6 +122,23 @@ public class WorldCommands {
 							}
 						});
 					}))
+				.withSubcommand(new CommandAPICommand("unloadAllEmptyWorlds")
+					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.unloadallemptyworlds"))
+					.executes((sender, args) -> {
+						sender.sendMessage("Started unloading empty worlds");
+						for (World world : Bukkit.getWorlds()) {
+							if (world.getPlayers().size() == 0 && !world.equals(Bukkit.getWorlds().get(0))) {
+								String worldName = world.getName();
+								MonumentaWorldManagementAPI.unloadWorld(worldName).whenComplete((unused, ex) -> {
+									if (ex != null) {
+										sender.sendMessage("Failed to unload world '" + worldName + "': " + ex.getMessage());
+									} else {
+										sender.sendMessage("Unloaded world '" + worldName + "'");
+									}
+								});
+							}
+						}
+					}))
 				.withSubcommand(new CommandAPICommand("forceworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.forceworld"))
 					.withArguments(new EntitySelectorArgument("player", EntitySelector.ONE_PLAYER))
