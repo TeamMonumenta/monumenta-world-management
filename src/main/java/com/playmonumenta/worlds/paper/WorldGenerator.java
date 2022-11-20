@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+
 import javax.annotation.Nullable;
 import org.bukkit.Bukkit;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -76,25 +78,20 @@ public class WorldGenerator {
 		return target.isDirectory() && new File(target, "level.dat").isFile();
 	}
 
-	public void getWorldInstance(String worldName) {
+	public void getWorldInstance(String worldName) throws Exception {
 		MMLog.fine("Preparing world " + worldName);
 		if (worldExists(worldName)) {
 			MMLog.fine("World already exists: " + worldName);
 			return;
 		}
 
-		// Wait for next world to be ready
-		String pregeneratedWorldName = null;
-		while (pregeneratedWorldName == null) {
-			try {
-				pregeneratedWorldName = mPregeneratedWorlds.take();
-				if (!worldExists(pregeneratedWorldName)) {
-					pregeneratedWorldName = null;
-					schedulePregeneration();
-				}
-			} catch (InterruptedException ignored) {
-				// If an interrupt prevents us from getting the next world, try again
-			}
+		// Try to get the next pregenerated world
+		// If one is not available, throw an exception
+		// Only wait a very short period of time - otherwise the watchdog may crash the server before one is available
+		String pregeneratedWorldName = mPregeneratedWorlds.poll(1, TimeUnit.SECONDS);
+		if (pregeneratedWorldName == null) {
+			schedulePregeneration();
+			throw new Exception("No pregenerated worlds are currently available");
 		}
 
 		MMLog.fine("Moving " + pregeneratedWorldName + " to " + worldName);
@@ -177,7 +174,7 @@ public class WorldGenerator {
 	}
 
 	/*
-	 * Start generating instances every 15 seconds, if they're not already generating
+	 * Start generating instances if they're not already generating
 	 */
 	public void schedulePregeneration() {
 		if (WorldManagementPlugin.getPregeneratedInstances() <= 0) {

@@ -164,7 +164,7 @@ public class MonumentaWorldManagementAPI {
 				throw new Exception("World '" + worldName + "' does not exist and copyTemplateIfNotExist is false");
 			}
 
-			/* Use pregenerated instances */
+			/* Create the world using a pregenerated instance - if none are available, throw an exception */
 			plugin.getWorldGenerator().getWorldInstance(worldName);
 
 			AVAILABLE_WORLDS_CACHE = Arrays.copyOf(AVAILABLE_WORLDS_CACHE, AVAILABLE_WORLDS_CACHE.length + 1);
