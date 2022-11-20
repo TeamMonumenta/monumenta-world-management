@@ -125,6 +125,15 @@ public class MonumentaWorldManagementAPI {
 	}
 
 	/**
+	 * @deprecated
+	 * This method can no longer be called async (2nd parameter) and will be removed from the API eventually. Use the one with two arguments.
+	 */
+	@Deprecated
+	public static World ensureWorldLoaded(String worldName, boolean unused, boolean copyTemplateIfNotExist) throws Exception {
+		return ensureWorldLoaded(worldName, copyTemplateIfNotExist);
+	}
+
+	/**
 	 * Gets the specified world, loading and optionally creating it if needed.
 	 *
 	 * Will always return a non-null world, or throw an exception if the request is not possible
