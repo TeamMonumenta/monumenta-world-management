@@ -22,7 +22,8 @@ public class WorldManagementPlugin extends JavaPlugin {
 	private static @Nullable CustomLogger mLogger = null;
 	private static String mTemplateWorldName = "template";
 	private static String mBaseWorldName = "world";
-	private static boolean mIsInstanced = false;
+	private static boolean mSortWorldByScoreOnJoin = false;
+	private static boolean mSortWorldByScoreOnRespawn = false;
 	private static boolean mAllowInstanceAutocreation = false;
 	private static int mPregeneratedInstances = 0;
 	private static int mUnloadInactiveWorldAfterTicks = 10 * 60 * 20;
@@ -87,16 +88,26 @@ public class WorldManagementPlugin extends JavaPlugin {
 		mBaseWorldName = config.getString("base-world-name", mBaseWorldName);
 		printConfig("base-world-name", mBaseWorldName);
 
-		mIsInstanced = config.getBoolean("is-instanced", mIsInstanced);
-		printConfig("is-instanced", mIsInstanced);
+		boolean deprecatedInstanced = config.getBoolean("is-instanced", false);
+		if (deprecatedInstanced) {
+			getLogger().warning("config 'is-instanced' is deprecated, please use the newer more specific config options");
+			mSortWorldByScoreOnJoin = true;
+			mSortWorldByScoreOnRespawn = true;
+		}
+
+		mSortWorldByScoreOnJoin = config.getBoolean("sort-world-by-score-on-join", mSortWorldByScoreOnJoin);
+		printConfig("sort-world-by-score-on-join", mSortWorldByScoreOnJoin);
+
+		mSortWorldByScoreOnRespawn = config.getBoolean("sort-world-by-score-on-respawn", mSortWorldByScoreOnRespawn);
+		printConfig("sort-world-by-score-on-respawn", mSortWorldByScoreOnRespawn);
 
 		mAllowInstanceAutocreation = config.getBoolean("allow-instance-autocreation", mAllowInstanceAutocreation);
 		printConfig("allow-instance-autocreation", mAllowInstanceAutocreation);
 
 		mPregeneratedInstances = config.getInt("pregenerated-instances", mPregeneratedInstances);
 		printConfig("pregenerated-instances", mPregeneratedInstances);
-		if (!mIsInstanced) {
-			mPregeneratedInstances = 0;
+		if (mPregeneratedInstances <= 0) {
+			getLogger().warning("Highly recommend setting pregenerated-instances > 0. Instance autocreation may not work at all without this");
 		}
 
 		mUnloadInactiveWorldAfterTicks = config.getInt("unload-inactive-world-after-ticks", mUnloadInactiveWorldAfterTicks);
@@ -149,8 +160,12 @@ public class WorldManagementPlugin extends JavaPlugin {
 		return mBaseWorldName;
 	}
 
-	public static boolean isInstanced() {
-		return mIsInstanced;
+	public static boolean isSortWorldByScoreOnJoin() {
+		return mSortWorldByScoreOnJoin;
+	}
+
+	public static boolean isSortWorldByScoreOnRespawn() {
+		return mSortWorldByScoreOnRespawn;
 	}
 
 	public static boolean allowInstanceAutocreation() {

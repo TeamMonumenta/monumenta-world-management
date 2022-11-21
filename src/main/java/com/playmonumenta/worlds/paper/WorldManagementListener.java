@@ -48,7 +48,7 @@ public class WorldManagementListener implements Listener {
 	 */
 	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
 	public void playerRespawnEvent(PlayerRespawnEvent event) {
-		if (!WorldManagementPlugin.isInstanced()) {
+		if (!WorldManagementPlugin.isSortWorldByScoreOnRespawn()) {
 			/* Not instanced, don't modify respawn location */
 			return;
 		}
@@ -56,12 +56,11 @@ public class WorldManagementListener implements Listener {
 		Player player = event.getPlayer();
 		int score = ScoreboardUtils.getScoreboardValue(player, WorldManagementPlugin.getInstanceObjective()).orElse(0);
 		if (score <= 0) {
-			// TODO: Disabled for now because players are seeing it... but this needs different config to handle this path than currently exists
-			//player.sendMessage(ChatColor.RED + "You respawned on an instanced world without an instance assigned to you. Unless you are an operator, this is probably a bug");
+			player.sendMessage(ChatColor.RED + "You respawned on an instanced world without an instance assigned to you. Unless you are an operator, this is probably a bug");
 		} else {
 			try {
 				/* World should already be loaded, just need to grab it */
-				World world = MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, false, WorldManagementPlugin.allowInstanceAutocreation());
+				World world = MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, WorldManagementPlugin.allowInstanceAutocreation());
 
 				// RESPAWN: The player is respawning in this world after having (probably) died there
 				if (WorldManagementPlugin.getRespawnInstanceCommand() != null) {
@@ -92,13 +91,13 @@ public class WorldManagementListener implements Listener {
 		Player player = event.getPlayer();
 		mLogger.fine("playerJoinSetWorldEvent: player=" + player.getName() + " thread=" + Thread.currentThread().getName());
 
-		if (!WorldManagementPlugin.isInstanced()) {
+		if (!WorldManagementPlugin.isSortWorldByScoreOnJoin()) {
 			String lastSavedWorldName = event.getLastSavedWorldName();
 
 			if (lastSavedWorldName != null) {
 				// If not an instanced server, still try to load the player's last world & put them there
 				try {
-					World world = MonumentaWorldManagementAPI.ensureWorldLoaded(lastSavedWorldName, false, false);
+					World world = MonumentaWorldManagementAPI.ensureWorldLoaded(lastSavedWorldName, false);
 					event.setWorld(world);
 				} catch (Exception ex) {
 					String msg = "Failed to load the last world you were on (" + lastSavedWorldName + "): " + ex.getMessage();
@@ -257,6 +256,6 @@ public class WorldManagementListener implements Listener {
 			throw new Exception("Tried to sort player but instance score is 0");
 		}
 
-		return MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, false, WorldManagementPlugin.allowInstanceAutocreation());
+		return MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, WorldManagementPlugin.allowInstanceAutocreation());
 	}
 }
