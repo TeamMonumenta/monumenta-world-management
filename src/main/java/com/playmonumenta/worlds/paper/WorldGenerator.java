@@ -4,21 +4,44 @@ import com.playmonumenta.worlds.common.MMLog;
 import com.playmonumenta.worlds.common.utils.FileUtils;
 import java.io.File;
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import org.bukkit.Bukkit;
 import org.bukkit.scheduler.BukkitRunnable;
 
 public class WorldGenerator {
+	private static class TemplatePregenState {
+		public final String mName;
+		public final int mLimit;
+		public final Pattern mRegex;
+		public final LinkedBlockingQueue<String> mPregenerated = new LinkedBlockingQueue<>();
+
+		public TemplatePregenState(String name, int limit) {
+			mName = name;
+			mLimit = limit;
+			mRegex = Pattern.compile(PREGEN_PREFIX + name + "(\\d+)");
+		}
+
+		public float fractionGenerated() {
+			return (float) mPregenerated.size() / mLimit;
+		}
+	}
+
 	private static @Nullable WorldGenerator INSTANCE = null;
 	private static final String PREGEN_PREFIX = "pregen_";
 	private static final String GENERATING_SUFFIX = ".generating";
-	// TODO Rework to handle multiple template worlds
-	private final LinkedBlockingQueue<String> mPregeneratedWorlds = new LinkedBlockingQueue<>();
+	private final ConcurrentMap<String, TemplatePregenState> mPregenStates = new ConcurrentSkipListMap<>();
 	private @Nullable BukkitRunnable mPregenScheduler = null;
 
 	private WorldGenerator() {
@@ -26,6 +49,26 @@ public class WorldGenerator {
 
 		if (WorldManagementPlugin.getPregeneratedInstances() <= 0) {
 			MMLog.info("pregenerated-instances <= 0, shutting down world generator.");
+			return;
+		}
+
+		// TODO Register other templates here
+		Set<String> templateNames = new HashSet<>();
+		templateNames.add(WorldManagementPlugin.getTemplateWorldName());
+
+		Iterator<String> templateNameIter = templateNames.iterator();
+		while (templateNameIter.hasNext()) {
+			String templateName = templateNameIter.next();
+			char finalChar = templateName.charAt(templateName.length() - 1);
+			if (finalChar >= '0' && finalChar <= '9') {
+				MMLog.warning("templates may not end with a number: " + templateName);
+				templateNameIter.remove();
+				continue;
+			}
+			mPregenStates.put(templateName, new TemplatePregenState(templateName, WorldManagementPlugin.getPregeneratedInstances()));
+		}
+		if (mPregenStates.isEmpty()) {
+			MMLog.info("No valid templates, shutting down world generator.");
 			return;
 		}
 
@@ -52,8 +95,16 @@ public class WorldGenerator {
 				}
 				continue;
 			}
-			MMLog.info("Detected pregenerated world " + name);
-			mPregeneratedWorlds.add(name);
+
+			for (Map.Entry<String, TemplatePregenState> entry : mPregenStates.entrySet()) {
+				TemplatePregenState pregenState = entry.getValue();
+				Matcher matcher = pregenState.mRegex.matcher(name);
+				if (matcher.matches()) {
+					MMLog.info("Detected pregenerated world " + name);
+					pregenState.mPregenerated.add(name);
+					break;
+				}
+			}
 		}
 
 		// TODO File watcher to restart generation if pregenerated world is deleted? Command to regenerate pregenerated instances?
@@ -70,7 +121,19 @@ public class WorldGenerator {
 	}
 
 	public int pregeneratedInstances() {
-		return mPregeneratedWorlds.size();
+		return pregeneratedInstances(WorldManagementPlugin.getTemplateWorldName());
+	}
+
+	public int pregeneratedInstances(String templateName) {
+		if (templateName == null) {
+			templateName = WorldManagementPlugin.getTemplateWorldName();
+		}
+
+		TemplatePregenState pregenState = mPregenStates.get(templateName);
+		if (pregenState == null) {
+			return 0;
+		}
+		return pregenState.mPregenerated.size();
 	}
 
 	public static boolean worldExists(String name) {
@@ -79,16 +142,25 @@ public class WorldGenerator {
 	}
 
 	public void getWorldInstance(String worldName) throws Exception {
+		getWorldInstance(worldName, WorldManagementPlugin.getTemplateWorldName());
+	}
+
+	public void getWorldInstance(String worldName, String templateName) throws Exception {
 		MMLog.fine("Preparing world " + worldName);
 		if (worldExists(worldName)) {
 			MMLog.fine("World already exists: " + worldName);
 			return;
 		}
 
+		TemplatePregenState pregenState = mPregenStates.get(templateName);
+		if (pregenState == null) {
+			throw new Exception("No such template world " + templateName);
+		}
+
 		// Try to get the next pregenerated world
 		// If one is not available, throw an exception
 		// Only wait a very short period of time - otherwise the watchdog may crash the server before one is available
-		String pregeneratedWorldName = mPregeneratedWorlds.poll(1, TimeUnit.SECONDS);
+		String pregeneratedWorldName = pregenState.mPregenerated.poll(1, TimeUnit.SECONDS);
 		if (pregeneratedWorldName == null) {
 			schedulePregeneration();
 			throw new Exception("No pregenerated worlds are currently available");
@@ -100,7 +172,7 @@ public class WorldGenerator {
 		if (!oldPath.renameTo(target)) {
 			if (worldExists(pregeneratedWorldName)) {
 				MMLog.warning("Failed to move " + pregeneratedWorldName + " to " + worldName);
-				mPregeneratedWorlds.add(pregeneratedWorldName);
+				pregenState.mPregenerated.add(pregeneratedWorldName);
 			}
 			if (worldExists(worldName)) {
 				MMLog.info("World " + worldName + " somehow appeared without moving a preloaded world");
@@ -112,9 +184,33 @@ public class WorldGenerator {
 		schedulePregeneration();
 	}
 
-	private CompletableFuture<String> generateWorldInstance() {
+	private CompletableFuture<Boolean> generateWorldInstance() {
 		String templateName = WorldManagementPlugin.getTemplateWorldName();
-		CompletableFuture<String> future = new CompletableFuture<>();
+		CompletableFuture<Boolean> future = new CompletableFuture<>();
+
+		TemplatePregenState templateState = null;
+		for (TemplatePregenState pregenState : mPregenStates.values()) {
+			if (templateState == null) {
+				templateState = pregenState;
+				continue;
+			}
+			if (pregenState.fractionGenerated() < templateState.fractionGenerated()) {
+				templateState = pregenState;
+			}
+		}
+		if (templateState == null) {
+			MMLog.severe("No template found!");
+			future.completeExceptionally(new Exception("No template found!"));
+			return future;
+		}
+		if (templateState.fractionGenerated() >= 1.0) {
+			MMLog.info("Completed all pregeneration for now");
+			// Indicate no more work
+			future.complete(false);
+			return future;
+		}
+		TemplatePregenState pregenState = templateState;
+
 		if (!worldExists(templateName)) {
 			MMLog.severe("Template world does not exist!");
 			future.completeExceptionally(new Exception("Template world does not exist!"));
@@ -125,7 +221,7 @@ public class WorldGenerator {
 		String pregenName = null;
 		for (int pregenIndex = 0; pregenIndex < WorldManagementPlugin.getPregeneratedInstances(); pregenIndex++) {
 			pregenName = pregenBase + pregenIndex;
-			if (!mPregeneratedWorlds.contains(pregenName)) {
+			if (!pregenState.mPregenerated.contains(pregenName)) {
 				break;
 			}
 		}
@@ -161,10 +257,11 @@ public class WorldGenerator {
 				}
 
 				// Mark as complete and return pregen world name
-				mPregeneratedWorlds.add(pregeneratedWorldName);
+				pregenState.mPregenerated.add(pregeneratedWorldName);
 				MMLog.info("Finished pregenerating " + pregeneratedWorldName
 					+ " (" + pregeneratedInstances() + "/" + WorldManagementPlugin.getPregeneratedInstances() + ")");
-				future.complete(pregeneratedWorldName);
+				// Indicate more work
+				future.complete(true);
 			} catch (Exception ex) {
 				MMLog.severe("Pregeneration failed: " + pregeneratedWorldName);
 				future.completeExceptionally(ex);
@@ -187,11 +284,15 @@ public class WorldGenerator {
 		mPregenScheduler = new BukkitRunnable() {
 			@Override
 			public void run() {
-				while (pregeneratedInstances() < WorldManagementPlugin.getPregeneratedInstances()) {
-					CompletableFuture<String> future = generateWorldInstance();
+				boolean working = true;
+				while (working) {
+					CompletableFuture<Boolean> future = generateWorldInstance();
 					while (true) {
 						try {
-							future.get();
+							Boolean workingWrapper = future.get();
+							if (workingWrapper != null) {
+								working = workingWrapper;
+							}
 							break;
 						} catch (InterruptedException ignored) {
 							// Ignore interrupt and try again
