@@ -27,7 +27,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
 public class MonumentaWorldManagementAPI {
-	private static int FORCE_LOAD_RADIUS = 2;
+	private static final int FORCE_LOAD_RADIUS = 2;
 
 	private static String[] AVAILABLE_WORLDS_CACHE = new String[0];
 
@@ -50,11 +50,8 @@ public class MonumentaWorldManagementAPI {
 	 */
 	public static boolean isWorldAvailable(String worldName) {
 		File test = new File(worldName);
-		if (test.isDirectory() && new File(test, "level.dat").isFile()) {
-			// File is a directory - and contains level.dat
-			return true;
-		}
-		return false;
+		// File is a directory - and contains level.dat
+		return test.isDirectory() && new File(test, "level.dat").isFile();
 	}
 
 	/**
@@ -75,15 +72,10 @@ public class MonumentaWorldManagementAPI {
 		File root = new File(".");
 		String[] directories = root.list((current, name) -> {
 			File test = new File(current, name);
-			if (test.isDirectory() && new File(test, "level.dat").isFile()) {
-				// File is a directory - and contains level.dat
-				return true;
-			}
-			return false;
+			// File is a directory - and contains level.dat
+			return test.isDirectory() && new File(test, "level.dat").isFile();
 		});
-		Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
-			AVAILABLE_WORLDS_CACHE = directories;
-		});
+		Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> AVAILABLE_WORLDS_CACHE = directories);
 		return directories;
 	}
 
@@ -92,9 +84,7 @@ public class MonumentaWorldManagementAPI {
 	 * Note that the cache may not be updated for several ticks!
 	 */
 	public static void refreshCachedAvailableWorlds() {
-		Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), () -> {
-			getAvailableWorlds();
-		});
+		Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), MonumentaWorldManagementAPI::getAvailableWorlds);
 	}
 
 	/**
@@ -281,7 +271,6 @@ public class MonumentaWorldManagementAPI {
 				if (mTicks >= 400) {
 					this.cancel();
 					future.completeExceptionally(new Exception("Timed out waiting for chunks to unload for world " + world.getName()));
-					return;
 				}
 			}
 		}.runTaskTimer(WorldManagementPlugin.getInstance(), 1, 1);
@@ -328,9 +317,7 @@ public class MonumentaWorldManagementAPI {
 
 				getAvailableWorlds(); // Update the cache
 
-				Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
-					future.complete(null);
-				});
+				Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> future.complete(null));
 			} catch (Exception ex) {
 				future.completeExceptionally(ex);
 				ex.printStackTrace();
@@ -339,6 +326,7 @@ public class MonumentaWorldManagementAPI {
 
 		return future;
 	}
+
 	/**
 	 * Deletes a world.
 	 *
@@ -373,13 +361,10 @@ public class MonumentaWorldManagementAPI {
 					if (tooManyLevels) {
 						throw new Exception("Can't delete world '" + worldName + "' which has folder depth > " + maxDepth);
 					}
-				} catch (Exception ex) {
-					throw ex;
 				}
 
 				// Delete all files recursively but do **not** follow symbolic links
-				Path directory = Paths.get(worldName);
-				Files.walkFileTree(directory, new SimpleFileVisitor<Path>() {
+				Files.walkFileTree(rootPath, new SimpleFileVisitor<Path>() {
 				   @Override
 				   public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
 					   Files.delete(file);
@@ -395,9 +380,7 @@ public class MonumentaWorldManagementAPI {
 
 				getAvailableWorlds(); // Update the cache
 
-				Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
-					future.complete(null);
-				});
+				Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> future.complete(null));
 			} catch (Exception ex) {
 				future.completeExceptionally(ex);
 				ex.printStackTrace();
