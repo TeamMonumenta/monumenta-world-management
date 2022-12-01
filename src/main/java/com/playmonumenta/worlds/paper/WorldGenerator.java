@@ -4,10 +4,8 @@ import com.playmonumenta.worlds.common.MMLog;
 import com.playmonumenta.worlds.common.utils.FileUtils;
 import java.io.File;
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -46,26 +44,34 @@ public class WorldGenerator {
 
 	private WorldGenerator() {
 		INSTANCE = this;
+	}
 
-		if (WorldManagementPlugin.getPregeneratedInstances() <= 0) {
-			MMLog.info("pregenerated-instances <= 0, shutting down world generator.");
+	public static WorldGenerator getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new WorldGenerator();
+		}
+		return INSTANCE;
+	}
+
+	public void reloadConfig() {
+		Map<String, Integer> templatePregenLimits = WorldManagementPlugin.getPregeneratedInstanceLimits();
+		if (templatePregenLimits.isEmpty()) {
+			MMLog.info("No template pregeneration specified, shutting down world generator.");
 			return;
 		}
 
-		// TODO Register other templates here
-		Set<String> templateNames = new HashSet<>();
-		templateNames.add(WorldManagementPlugin.getTemplateWorldName());
-
-		Iterator<String> templateNameIter = templateNames.iterator();
+		Iterator<Map.Entry<String, Integer>> templateNameIter = templatePregenLimits.entrySet().iterator();
 		while (templateNameIter.hasNext()) {
-			String templateName = templateNameIter.next();
+			Map.Entry<String, Integer> entry = templateNameIter.next();
+			String templateName = entry.getKey();
+			int pregenLimit = entry.getValue();
 			char finalChar = templateName.charAt(templateName.length() - 1);
 			if (finalChar >= '0' && finalChar <= '9') {
 				MMLog.warning("templates may not end with a number: " + templateName);
 				templateNameIter.remove();
 				continue;
 			}
-			mPregenStates.put(templateName, new TemplatePregenState(templateName, WorldManagementPlugin.getPregeneratedInstances()));
+			mPregenStates.put(templateName, new TemplatePregenState(templateName, pregenLimit));
 		}
 		if (mPregenStates.isEmpty()) {
 			MMLog.info("No valid templates, shutting down world generator.");
@@ -113,15 +119,22 @@ public class WorldGenerator {
 		schedulePregeneration();
 	}
 
-	public static WorldGenerator getInstance() {
-		if (INSTANCE == null) {
-			INSTANCE = new WorldGenerator();
+	public float progress() {
+		int completed = 0;
+		int limit = 0;
+		for (TemplatePregenState state : mPregenStates.values()) {
+			int stateLimit = state.mLimit;
+			if (stateLimit <= 0) {
+				continue;
+			}
+			int stateCompleted = state.mPregenerated.size();
+			completed += Math.min(stateCompleted, stateLimit);
+			limit += stateLimit;
 		}
-		return INSTANCE;
-	}
-
-	public int pregeneratedInstances() {
-		return pregeneratedInstances(WorldManagementPlugin.getTemplateWorldName());
+		if (limit == 0) {
+			return 1.0f;
+		}
+		return (float) completed / (float) limit;
 	}
 
 	public int pregeneratedInstances(String templateName) {
@@ -185,7 +198,6 @@ public class WorldGenerator {
 	}
 
 	private CompletableFuture<Boolean> generateWorldInstance() {
-		String templateName = WorldManagementPlugin.getTemplateWorldName();
 		CompletableFuture<Boolean> future = new CompletableFuture<>();
 
 		TemplatePregenState templateState = null;
@@ -210,6 +222,7 @@ public class WorldGenerator {
 			return future;
 		}
 		TemplatePregenState pregenState = templateState;
+		String templateName = pregenState.mName;
 
 		if (!worldExists(templateName)) {
 			MMLog.severe("Template world does not exist!");
@@ -217,9 +230,9 @@ public class WorldGenerator {
 			return future;
 		}
 
-		String pregenBase = PREGEN_PREFIX + WorldManagementPlugin.getBaseWorldName();
+		String pregenBase = PREGEN_PREFIX + templateName;
 		String pregenName = null;
-		for (int pregenIndex = 0; pregenIndex < WorldManagementPlugin.getPregeneratedInstances(); pregenIndex++) {
+		for (int pregenIndex = 0; pregenIndex < pregenState.mLimit; pregenIndex++) {
 			pregenName = pregenBase + pregenIndex;
 			if (!pregenState.mPregenerated.contains(pregenName)) {
 				break;
@@ -234,7 +247,9 @@ public class WorldGenerator {
 
 		String pregeneratedWorldName = pregenName;
 		MMLog.info("Starting pregeneration of " + pregeneratedWorldName
-			+ " (" + (pregeneratedInstances() + 1) + "/" + WorldManagementPlugin.getPregeneratedInstances() + ")");
+			+ " (" + (pregeneratedInstances(templateName) + 1)
+			+ "/" + pregenState.mLimit
+			+ ", " + (int) (100 * progress()) + "% total)");
 		Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), () -> {
 			try {
 				// Generate the instance
@@ -259,7 +274,9 @@ public class WorldGenerator {
 				// Mark as complete and return pregen world name
 				pregenState.mPregenerated.add(pregeneratedWorldName);
 				MMLog.info("Finished pregenerating " + pregeneratedWorldName
-					+ " (" + pregeneratedInstances() + "/" + WorldManagementPlugin.getPregeneratedInstances() + ")");
+					+ " (" + pregeneratedInstances(templateName)
+					+ "/" + pregenState.mLimit
+					+ ", " + (int) (100 * progress()) + "% total)");
 				// Indicate more work
 				future.complete(true);
 			} catch (Exception ex) {
@@ -274,9 +291,6 @@ public class WorldGenerator {
 	 * Start generating instances if they're not already generating
 	 */
 	public void schedulePregeneration() {
-		if (WorldManagementPlugin.getPregeneratedInstances() <= 0) {
-			return;
-		}
 		if (mPregenScheduler != null) {
 			return;
 		}
@@ -305,7 +319,7 @@ public class WorldGenerator {
 					}
 				}
 
-				MMLog.info("All pregeneration complete (" + pregeneratedInstances() + ").");
+				MMLog.info("All pregeneration complete.");
 				mPregenScheduler = null;
 				this.cancel();
 			}

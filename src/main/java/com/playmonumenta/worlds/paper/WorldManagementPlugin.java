@@ -2,8 +2,11 @@ package com.playmonumenta.worlds.paper;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -12,6 +15,7 @@ import javax.annotation.Nullable;
 import com.playmonumenta.worlds.common.CustomLogger;
 
 import org.bukkit.Bukkit;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
@@ -33,6 +37,7 @@ public class WorldManagementPlugin extends JavaPlugin {
 	private static @Nullable String mRespawnInstanceCommand = null;
 	private static @Nullable String mNotifyWorldPermission = "monumenta.worldmanagement.worldnotify";
 	private static String mCopyWorldCommand = "cp -a";
+	private static final Map<String, ShardInfo> mShardInfoMap = new HashMap<>();
 
 	private @Nullable WorldManagementListener mListener = null;
 	private @Nullable WorldGenerator mGenerator = null;
@@ -45,10 +50,10 @@ public class WorldManagementPlugin extends JavaPlugin {
 	@Override
 	public void onEnable() {
 		INSTANCE = this;
+		mGenerator = WorldGenerator.getInstance();
 
 		loadConfig();
 
-		mGenerator = WorldGenerator.getInstance();
 		mListener = new WorldManagementListener(this);
 		Bukkit.getPluginManager().registerEvents(mListener, this);
 
@@ -65,7 +70,12 @@ public class WorldManagementPlugin extends JavaPlugin {
 				configFile.getParentFile().mkdirs();
 
 				// Copy the default config file
-				Files.copy(getClass().getResourceAsStream("/default_config.yml"), configFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+				InputStream defaultConfig = getClass().getResourceAsStream("/default_config.yml");
+				if (defaultConfig == null) {
+					getLogger().log(Level.SEVERE, "Failed to locate default configuration file; was the plugin jar replaced?");
+				} else {
+					Files.copy(defaultConfig, configFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+				}
 			} catch (IOException ex) {
 				getLogger().log(Level.SEVERE, "Failed to create configuration file");
 			}
@@ -80,6 +90,24 @@ public class WorldManagementPlugin extends JavaPlugin {
 			printConfig("log-level", logLevel);
 		} catch (Exception ex) {
 			getLogger().warning("log-level=" + logLevel + " is invalid - defaulting to INFO");
+		}
+
+		ConfigurationSection instancingConfig = config.getConfigurationSection("instancing");
+		if (instancingConfig == null) {
+			printConfig("instancing", null);
+		} else {
+			mShardInfoMap.clear();
+			printConfigHeader("instancing");
+			for (String shardName : instancingConfig.getKeys(false)) {
+				ConfigurationSection shardConfig = instancingConfig.getConfigurationSection(shardName);
+				if (shardConfig == null) {
+					printConfig("  " + shardName, null);
+				} else {
+					printConfigHeader("  " + shardName);
+					ShardInfo shardInfo = new ShardInfo(this, shardConfig);
+					mShardInfoMap.put(shardName, shardInfo);
+				}
+			}
 		}
 
 		mTemplateWorldName = config.getString("template-world-name", mTemplateWorldName);
@@ -146,9 +174,17 @@ public class WorldManagementPlugin extends JavaPlugin {
 		if (mListener != null) {
 			mListener.reloadConfig();
 		}
+
+		if (mGenerator != null) {
+			mGenerator.reloadConfig();
+		}
 	}
 
-	private <T> void printConfig(String configKey, @Nullable T value) {
+	protected void printConfigHeader(String configKey) {
+		getLogger().info(configKey + ":");
+	}
+
+	protected <T> void printConfig(String configKey, @Nullable T value) {
 		getLogger().info(configKey + "=" + (value == null ? "null" : value));
 	}
 
@@ -174,6 +210,28 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 	public static int getPregeneratedInstances() {
 		return mPregeneratedInstances;
+	}
+
+	public static Map<String, Integer> getPregeneratedInstanceLimits() {
+		// TODO Expose an unmodifiable map so the world generator can handle this part
+		Map<String, Integer> templatePregenLimits = new HashMap<>();
+		// Legacy support
+		if (mPregeneratedInstances > 0) {
+			templatePregenLimits.put(mTemplateWorldName, mPregeneratedInstances);
+		}
+		// Modern support
+		for (ShardInfo shardInfo : mShardInfoMap.values()) {
+			int shardPregenLimit = shardInfo.getPregeneratedInstances();
+			if (shardPregenLimit > 0) {
+				for (String template : shardInfo.getVariantTemplates()) {
+					Integer oldLimit = templatePregenLimits.get(template);
+					if (oldLimit == null || oldLimit < shardPregenLimit) {
+						templatePregenLimits.put(template, shardPregenLimit);
+					}
+				}
+			}
+		}
+		return templatePregenLimits;
 	}
 
 	public static int getUnloadInactiveWorldAfterTicks() {
@@ -223,7 +281,6 @@ public class WorldManagementPlugin extends JavaPlugin {
 	}
 
 	/* If this ever returned null everything would explode anyway, no reason to add error handling around this */
-	@SuppressWarnings("NullAway")
 	protected static WorldManagementPlugin getInstance() {
 		if (INSTANCE == null) {
 			throw new RuntimeException("WorldManagementPlugin accessed before loading");
