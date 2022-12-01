@@ -27,7 +27,7 @@ public class ScoreboardUtils {
 
 	public static @NotNull Optional<Integer> getScoreboardValue(@NotNull Entity entity, @NotNull String objectiveName) {
 		if (entity instanceof Player) {
-			return getScoreboardValue(((Player)entity).getName(), objectiveName);
+			return getScoreboardValue(entity.getName(), objectiveName);
 		} else {
 			return getScoreboardValue(entity.getUniqueId().toString(), objectiveName);
 		}
@@ -43,7 +43,7 @@ public class ScoreboardUtils {
 
 	public static void setScoreboardValue(@NotNull Entity entity, @NotNull String objectiveName, int value) {
 		if (entity instanceof Player) {
-			setScoreboardValue(((Player)entity).getName(), objectiveName, value);
+			setScoreboardValue(entity.getName(), objectiveName, value);
 		} else {
 			setScoreboardValue(entity.getUniqueId().toString(), objectiveName, value);
 		}

@@ -11,7 +11,6 @@ import dev.jorel.commandapi.arguments.IntegerArgument;
 import dev.jorel.commandapi.arguments.LocationArgument;
 import dev.jorel.commandapi.arguments.LocationType;
 import dev.jorel.commandapi.arguments.StringArgument;
-import dev.jorel.commandapi.exceptions.WrapperCommandSyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -29,6 +28,7 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -70,14 +70,14 @@ public class WorldCommands {
 							}
 
 							world.setViewDistance(distance);
-							sender.sendMessage("View distance for world '" + world.getName() + "' set to " + Integer.toString(distance));
+							sender.sendMessage("View distance for world '" + world.getName() + "' set to " + distance);
 						} else {
 							Integer initial = INITIAL_VIEW_DISTANCES.get(world.getUID());
 							if (initial == null) {
-								sender.sendMessage("Original view distance for world '" + world.getName() + "' unchanged, currently " + Integer.toString(world.getViewDistance()));
+								sender.sendMessage("Original view distance for world '" + world.getName() + "' unchanged, currently " + world.getViewDistance());
 							} else {
 								world.setViewDistance(initial);
-								sender.sendMessage("View distance for world '" + world.getName() + "' reset to " + Integer.toString(initial));
+								sender.sendMessage("View distance for world '" + world.getName() + "' reset to " + initial);
 							}
 						}
 					}))
@@ -86,7 +86,7 @@ public class WorldCommands {
 					.executes((sender, args) -> {
 						sender.sendMessage("Currently loaded worlds:");
 						for (World world : Bukkit.getWorlds()) {
-							List<String> listOfPlayerNames = world.getPlayers().stream().map((player) -> player.getName()).collect(Collectors.toList());
+							List<String> listOfPlayerNames = world.getPlayers().stream().map(HumanEntity::getName).collect(Collectors.toList());
 							sender.sendMessage("  " + world.getName() + ": " + String.join(", ", listOfPlayerNames));
 						}
 						if (sender instanceof Player) {
@@ -109,7 +109,7 @@ public class WorldCommands {
 					}))
 				.withSubcommand(new CommandAPICommand("unloadworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.unloadworld"))
-					.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> Bukkit.getWorlds().stream().map((world) -> world.getName()).toArray(String[]::new)))
+					.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> Bukkit.getWorlds().stream().map(World::getName).toArray(String[]::new)))
 					.executes((sender, args) -> {
 						String worldName = (String)args[0];
 
@@ -275,7 +275,7 @@ public class WorldCommands {
 			.executes((sender, args) -> {
 				sender.sendMessage("Currently loaded worlds:");
 				for (World world : Bukkit.getWorlds()) {
-					List<String> listOfPlayerNames = world.getPlayers().stream().map((player) -> player.getName()).collect(Collectors.toList());
+					List<String> listOfPlayerNames = world.getPlayers().stream().map(HumanEntity::getName).collect(Collectors.toList());
 					sender.sendMessage("  " + world.getName() + ": " + String.join(", ", listOfPlayerNames));
 				}
 				if (sender instanceof Player) {
@@ -307,7 +307,7 @@ public class WorldCommands {
 		}
 	}
 
-	private static void forceWorld(CommandSender sender, Player player, String worldName) throws WrapperCommandSyntaxException {
+	private static void forceWorld(CommandSender sender, Player player, String worldName) {
 		// Important - need to save the player's location data on the existing world
 		player.saveData();
 		Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
@@ -337,7 +337,7 @@ public class WorldCommands {
 	 */
 	private static void upgradeWorlds(List<String> worldNamesIn) {
 		// Copy the input list so it can be modified locally
-		List<String> worldNames = new ArrayList<String>(worldNamesIn);
+		List<String> worldNames = new ArrayList<>(worldNamesIn);
 
 		Bukkit.getScheduler().runTask(WorldManagementPlugin.getInstance(), () -> {
 			Logger log = WorldManagementPlugin.getInstance().getLogger();
@@ -355,7 +355,7 @@ public class WorldCommands {
 						// If there was a last world, unload it
 						if (mLastWorldName != null) {
 							log.info("Finished upgrading world '" + mLastWorldName + "'");
-							log.fine(() -> "Upgrading took " + Long.toString(System.currentTimeMillis() - mStartTime) + " milliseconds");
+							log.fine(() -> "Upgrading took " + (System.currentTimeMillis() - mStartTime) + " milliseconds");
 							MonumentaWorldManagementAPI.unloadWorld(mLastWorldName).whenComplete((unused, ex) -> {
 								if (ex != null) {
 									log.severe("Failed to unload world '" + mLastWorldName + "': " + ex.getMessage());
