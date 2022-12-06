@@ -326,6 +326,7 @@ public class MonumentaWorldManagementAPI {
 
 		return future;
 	}
+
 	/**
 	 * Deletes a world.
 	 *
