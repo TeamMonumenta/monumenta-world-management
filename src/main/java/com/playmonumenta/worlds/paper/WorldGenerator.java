@@ -6,16 +6,13 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
-import org.bukkit.Bukkit;
 import org.bukkit.scheduler.BukkitRunnable;
 
 public class WorldGenerator {
@@ -39,6 +36,7 @@ public class WorldGenerator {
 	private static @Nullable WorldGenerator INSTANCE = null;
 	private static final String PREGEN_PREFIX = "pregen_";
 	private static final String GENERATING_SUFFIX = ".generating";
+	private static final int MAX_PREGEN_SEQUENTIAL_FAILURES = 5;
 	private final ConcurrentMap<String, TemplatePregenState> mPregenStates = new ConcurrentSkipListMap<>();
 	private @Nullable BukkitRunnable mPregenScheduler = null;
 
@@ -197,9 +195,14 @@ public class WorldGenerator {
 		schedulePregeneration();
 	}
 
-	private CompletableFuture<Boolean> generateWorldInstance() {
-		CompletableFuture<Boolean> future = new CompletableFuture<>();
-
+	/**
+	 * Generates the next instance.
+	 *
+	 * Returns true if still instances that need generating, false if done for now
+	 *
+	 * Should only be called on an async thread, will block for a long time!
+	 */
+	private boolean generateWorldInstance() throws Exception {
 		TemplatePregenState templateState = null;
 		for (TemplatePregenState pregenState : mPregenStates.values()) {
 			if (templateState == null) {
@@ -212,22 +215,19 @@ public class WorldGenerator {
 		}
 		if (templateState == null) {
 			MMLog.severe("No template found!");
-			future.completeExceptionally(new Exception("No template found!"));
-			return future;
+			throw new Exception("No template found!");
 		}
 		if (templateState.fractionGenerated() >= 1.0) {
 			MMLog.info("Completed all pregeneration for now");
 			// Indicate no more work
-			future.complete(false);
-			return future;
+			return false;
 		}
 		TemplatePregenState pregenState = templateState;
 		String templateName = pregenState.mName;
 
 		if (!worldExists(templateName)) {
 			MMLog.severe("Template world does not exist!");
-			future.completeExceptionally(new Exception("Template world does not exist!"));
-			return future;
+			throw new Exception("Template world does not exist!");
 		}
 
 		String pregenBase = PREGEN_PREFIX + templateName;
@@ -241,8 +241,7 @@ public class WorldGenerator {
 
 		if (pregenName == null) {
 			MMLog.warning("Pregen instance limit <= 0!");
-			future.completeExceptionally(new Exception("Pregen instance limit <= 0!"));
-			return future;
+			throw new Exception("Pregen instance limit <= 0!");
 		}
 
 		String pregeneratedWorldName = pregenName;
@@ -250,41 +249,35 @@ public class WorldGenerator {
 			+ " (" + (pregeneratedInstances(templateName) + 1)
 			+ "/" + pregenState.mLimit
 			+ ", " + (int) (100 * progress()) + "% total)");
-		Bukkit.getScheduler().runTaskAsynchronously(WorldManagementPlugin.getInstance(), () -> {
-			try {
-				// Generate the instance
-				String generatingWorldName = pregeneratedWorldName + GENERATING_SUFFIX;
-				Process process = Runtime.getRuntime().exec(WorldManagementPlugin.getCopyWorldCommand() + " " + templateName + " " + generatingWorldName);
-				int exitVal = process.waitFor();
-				if (exitVal != 0) {
-					String msg = "Failed to copy world '" + templateName + "' to '" + generatingWorldName + "': " + exitVal;
-					MMLog.severe(msg);
-					throw new Exception(msg);
-				}
 
-				// Move to pregenerated world path
-				File generatingWorld = new File(generatingWorldName);
-				File pregeneratedWorld = new File(pregeneratedWorldName);
-				if (!generatingWorld.renameTo(pregeneratedWorld)) {
-					String msg = "Failed to move pregenerating world " + generatingWorld + " to " + pregeneratedWorld;
-					MMLog.severe(msg);
-					throw new Exception(msg);
-				}
+		// Generate the instance
+		String generatingWorldName = pregeneratedWorldName + GENERATING_SUFFIX;
+		Process process = Runtime.getRuntime().exec(WorldManagementPlugin.getCopyWorldCommand() + " " + templateName + " " + generatingWorldName);
+		int exitVal = process.waitFor();
+		if (exitVal != 0) {
+			String msg = "Failed to copy world '" + templateName + "' to '" + generatingWorldName + "': " + exitVal;
+			MMLog.severe(msg);
+			throw new Exception(msg);
+		}
 
-				// Mark as complete and return pregen world name
-				pregenState.mPregenerated.add(pregeneratedWorldName);
-				MMLog.info("Finished pregenerating " + pregeneratedWorldName
-					+ " (" + pregeneratedInstances(templateName)
-					+ "/" + pregenState.mLimit
-					+ ", " + (int) (100 * progress()) + "% total)");
-				// Indicate more work
-				future.complete(true);
-			} catch (Exception ex) {
-				MMLog.severe("Pregeneration failed: " + pregeneratedWorldName);
-				future.completeExceptionally(ex);
-			}
-		});
-		return future;
+		// Move to pregenerated world path
+		File generatingWorld = new File(generatingWorldName);
+		File pregeneratedWorld = new File(pregeneratedWorldName);
+		if (!generatingWorld.renameTo(pregeneratedWorld)) {
+			String msg = "Failed to move pregenerating world " + generatingWorld + " to " + pregeneratedWorld;
+			MMLog.severe(msg);
+			throw new Exception(msg);
+		}
+
+		// Mark as complete and return pregen world name
+		pregenState.mPregenerated.add(pregeneratedWorldName);
+		MMLog.info("Finished pregenerating " + pregeneratedWorldName
+			+ " (" + pregeneratedInstances(templateName)
+			+ "/" + pregenState.mLimit
+			+ ", " + (int) (100 * progress()) + "% total)");
+
+		// Indicate done and probably more work to do
+		return true;
 	}
 
 	/*
@@ -296,27 +289,31 @@ public class WorldGenerator {
 		}
 
 		mPregenScheduler = new BukkitRunnable() {
+			int mFailures = 0;
+
 			@Override
 			public void run() {
-				boolean working = true;
-				while (working) {
-					CompletableFuture<Boolean> future = generateWorldInstance();
-					while (true) {
-						try {
-							Boolean workingWrapper = future.get();
-							if (workingWrapper != null) {
-								working = workingWrapper;
-							}
-							break;
-						} catch (InterruptedException ignored) {
-							// Ignore interrupt and try again
-						} catch (ExecutionException ex) {
-							MMLog.warning("Got exception during instance pregen: " + ex.getMessage());
-							mPregenScheduler = null;
-							this.cancel();
-							return;
+				boolean workToDo = true;
+				while (workToDo) {
+					try {
+						workToDo = generateWorldInstance();
+					} catch (Exception ex) {
+						MMLog.warning("Got exception during instance pregen: " + ex.getMessage());
+						mPregenScheduler = null;
+
+						mFailures += 1;
+						if (mFailures < MAX_PREGEN_SEQUENTIAL_FAILURES) {
+							// Try again - less than the failure limit
+							continue;
 						}
+
+						// Hit retry limit, cancel generation
+						MMLog.severe("Got " + mFailures + " back-to-back pregeneration failures; aborting pregeneration");
+						this.cancel();
+						return;
 					}
+
+					mFailures = 0;
 				}
 
 				MMLog.info("All pregeneration complete.");
