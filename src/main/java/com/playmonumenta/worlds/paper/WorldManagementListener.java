@@ -54,21 +54,28 @@ public class WorldManagementListener implements Listener {
 		}
 
 		Player player = event.getPlayer();
-		int score = ScoreboardUtils.getScoreboardValue(player, WorldManagementPlugin.getInstanceObjective()).orElse(0);
+
+		ShardInfo info = WorldManagementPlugin.getActiveShardInfo();
+		if (info == null) {
+			mLogger.severe("sort-world-by-score-on-respawn is True but no instancing shard info exists" );
+			return;
+		}
+
+		int score = ScoreboardUtils.getScoreboardValue(player, info.getInstanceObjective()).orElse(0);
 		if (score <= 0) {
 			player.sendMessage(ChatColor.RED + "You respawned on an instanced world without an instance assigned to you. Unless you are an operator, this is probably a bug");
 		} else {
 			try {
 				/* World should already be loaded, just need to grab it */
-				World world = MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, WorldManagementPlugin.allowInstanceAutocreation());
+				World world = MonumentaWorldManagementAPI.ensureWorldLoaded(info.getBaseWorldName() + score, WorldManagementPlugin.allowInstanceAutocreation());
 
 				// RESPAWN: The player is respawning in this world after having (probably) died there
-				if (WorldManagementPlugin.getRespawnInstanceCommand() != null) {
+				if (info.getRespawnInstanceCommand() != null) {
 					Bukkit.getScheduler().runTaskLater(mPlugin, () -> {
 						// Note that this will run after the player has been moved to the correct world, since it runs a tick later
 						if (Bukkit.getOnlinePlayers().contains(player)) {
 							mLogger.fine("Running respawn command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
-							Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRespawnInstanceCommand());
+							Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + info.getRespawnInstanceCommand());
 						}
 					}, 1);
 				}
@@ -251,11 +258,16 @@ public class WorldManagementListener implements Listener {
 	 * Must be called from the main thread
 	 */
 	protected World getSortWorld(Player player, @Nullable String currentWorldName) throws Exception {
-		int score = ScoreboardUtils.getScoreboardValue(player, WorldManagementPlugin.getInstanceObjective()).orElse(0);
+		ShardInfo info = WorldManagementPlugin.getActiveShardInfo();
+		if (info == null) {
+			throw new Exception("Tried to get sort world for player but no instancing shard info exists" );
+		}
+
+		int score = ScoreboardUtils.getScoreboardValue(player, info.getInstanceObjective()).orElse(0);
 		if (score <= 0) {
 			throw new Exception("Tried to sort player but instance score is 0");
 		}
 
-		return MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, WorldManagementPlugin.allowInstanceAutocreation());
+		return MonumentaWorldManagementAPI.ensureWorldLoaded(info.getBaseWorldName() + score, WorldManagementPlugin.allowInstanceAutocreation());
 	}
 }

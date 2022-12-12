@@ -136,10 +136,6 @@ public class WorldGenerator {
 	}
 
 	public int pregeneratedInstances(String templateName) {
-		if (templateName == null) {
-			templateName = WorldManagementPlugin.getTemplateWorldName();
-		}
-
 		TemplatePregenState pregenState = mPregenStates.get(templateName);
 		if (pregenState == null) {
 			return 0;
@@ -150,10 +146,6 @@ public class WorldGenerator {
 	public static boolean worldExists(String name) {
 		File target = new File(name);
 		return target.isDirectory() && new File(target, "level.dat").isFile();
-	}
-
-	public void getWorldInstance(String worldName) throws Exception {
-		getWorldInstance(worldName, WorldManagementPlugin.getTemplateWorldName());
 	}
 
 	public void getWorldInstance(String worldName, String templateName) throws Exception {
