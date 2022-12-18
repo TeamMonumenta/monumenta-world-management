@@ -35,6 +35,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 public class WorldCommands {
 	private static final Map<UUID, Integer> INITIAL_VIEW_DISTANCES = new HashMap<>();
 
+	@SuppressWarnings("unchecked")
 	public static void register(WorldManagementPlugin worldPlugin) {
 		new CommandAPICommand("monumenta")
 			.withSubcommand(new CommandAPICommand("worldmanagement")
@@ -100,7 +101,7 @@ public class WorldCommands {
 						String worldName = (String)args[0];
 
 						try {
-							MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, false);
+							MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, null);
 						} catch (Exception ex) {
 							CommandAPI.fail(ex.getMessage());
 						}
@@ -160,8 +161,10 @@ public class WorldCommands {
 				.withSubcommand(new CommandAPICommand("createworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.createworld"))
 					.withArguments(new StringArgument("worldName"))
+					.withArguments(new StringArgument("templateName"))
 					.executes((sender, args) -> {
 						String worldName = (String)args[0];
+						String templateName = (String)args[1];
 
 						if (MonumentaWorldManagementAPI.isWorldAvailable(worldName)) {
 							sender.sendMessage("World '" + worldName + "' already exists, this command is for creating new worlds");
@@ -170,7 +173,7 @@ public class WorldCommands {
 
 						sender.sendMessage("Started creating world '" + worldName + "' from template");
 						try {
-							MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, true);
+							MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, templateName);
 							sender.sendMessage("Created and loaded world '" + worldName + "' from master copy");
 						} catch (Exception ex) {
 							sender.sendMessage("Failed to create world '" + worldName + "': " + ex.getMessage());
@@ -291,7 +294,7 @@ public class WorldCommands {
 			.withArguments(new LocationArgument("location"))
 			.executes((sender, args) -> {
 				try {
-					teleportToWorld(sender, (Collection<Entity>)args[0], (String) args[1], (Location) args[2]);
+					teleportToWorld((Collection<Entity>)args[0], (String) args[1], (Location) args[2]);
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -299,8 +302,8 @@ public class WorldCommands {
 			.register();
 	}
 
-	public static void teleportToWorld(CommandSender sender, Collection<Entity> targets, String world, Location loc) throws Exception {
-		World actualWorld = MonumentaWorldManagementAPI.ensureWorldLoaded(world, false);
+	public static void teleportToWorld(Collection<Entity> targets, String world, Location loc) throws Exception {
+		World actualWorld = MonumentaWorldManagementAPI.ensureWorldLoaded(world, null);
 		Location newLoc = new Location(actualWorld, loc.getX(), loc.getY(), loc.getZ());
 		for (Entity player : targets) {
 			player.teleport(newLoc);
@@ -312,7 +315,7 @@ public class WorldCommands {
 		player.saveData();
 		Bukkit.getScheduler().runTaskLater(WorldManagementPlugin.getInstance(), () -> {
 			try {
-				World newWorld = MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, false);
+				World newWorld = MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, null);
 
 				MonumentaRedisSyncAPI.getPlayerWorldData(player, newWorld).applyToPlayer(player);
 			} catch (Exception ex) {
@@ -326,13 +329,13 @@ public class WorldCommands {
 
 	/**
 	 * Loads all chunks of input world names.
-	 *
+	 * <p>
 	 * For each specified world name:
 	 * - Load world,
 	 * - Run LightCleaner on it
 	 * - Wait for completion
 	 * - Unload world (continue on failure)
-	 *
+	 * <p>
 	 * Operates on one world at a time. Input world names should be validated beforehand
 	 */
 	private static void upgradeWorlds(List<String> worldNamesIn) {
@@ -380,7 +383,7 @@ public class WorldCommands {
 						// Load world
 						World world;
 						try {
-							world = MonumentaWorldManagementAPI.ensureWorldLoaded(mLastWorldName, false);
+							world = MonumentaWorldManagementAPI.ensureWorldLoaded(mLastWorldName, null);
 						} catch (Exception ex) {
 							// Severe error, fail and stop loading new worlds so it doesn't get missed
 							log.severe("Failed to load world '" + mLastWorldName + "': " + ex.getMessage());

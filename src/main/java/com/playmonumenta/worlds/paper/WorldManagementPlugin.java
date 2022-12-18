@@ -1,6 +1,8 @@
 package com.playmonumenta.worlds.paper;
 
+import com.playmonumenta.networkrelay.NetworkRelayAPI;
 import com.playmonumenta.worlds.common.CustomLogger;
+import com.playmonumenta.worlds.common.MMLog;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,6 +16,7 @@ import javax.annotation.Nullable;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 
@@ -150,13 +153,31 @@ public class WorldManagementPlugin extends JavaPlugin {
 		return mAllowInstanceAutocreation;
 	}
 
-	public static @Nullable ShardInfo getActiveShardInfo() {
-		// TODO: For now, just use the first entry in the map.
+	public static @Nullable ShardInfo getShardInfo(Player player) {
+		// TODO: For now, just use the current shard name.
 		// Eventually need some sorcery to let a player select a different entry
-		for (ShardInfo info : mShardInfoMap.values()) {
-			return info;
+		String shardName;
+		try {
+			shardName = NetworkRelayAPI.getShardName();
+		} catch (Exception e) {
+			MMLog.severe("Could not get shard name while handling player join event!");
+			return null;
 		}
-		return null;
+		if (shardName == null) {
+			MMLog.severe("Got null shard name while handling player join event!");
+			return null;
+		}
+
+		ShardInfo shardInfo = getShardInfo(shardName);
+		if (shardInfo == null) {
+			MMLog.fine(() -> "No shard info for " + shardName);
+			return null;
+		}
+		return shardInfo;
+	}
+
+	public static @Nullable ShardInfo getShardInfo(String shardName) {
+		return mShardInfoMap.get(shardName);
 	}
 
 	public static Map<String, Integer> getPregeneratedInstanceLimits() {
