@@ -57,7 +57,7 @@ public class WorldManagementListener implements Listener {
 
 		ShardInfo info = WorldManagementPlugin.getShardInfo(player);
 		if (info == null) {
-			mLogger.severe("sort-world-by-score-on-respawn is True but no instancing shard info exists" );
+			mLogger.severe("sort-world-by-score-on-respawn is True but no instancing shard info exists");
 			return;
 		}
 
@@ -269,7 +269,7 @@ public class WorldManagementListener implements Listener {
 	protected World getSortWorld(Player player) throws Exception {
 		ShardInfo info = WorldManagementPlugin.getShardInfo(player);
 		if (info == null) {
-			throw new Exception("Tried to get sort world for player but no instancing shard info exists" );
+			throw new Exception("Tried to get sort world for player but no instancing shard info exists");
 		}
 
 		int score = ScoreboardUtils.getScoreboardValue(player, info.getInstanceObjective()).orElse(0);
