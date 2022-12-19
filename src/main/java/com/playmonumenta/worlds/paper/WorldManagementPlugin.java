@@ -154,26 +154,18 @@ public class WorldManagementPlugin extends JavaPlugin {
 	}
 
 	public static @Nullable ShardInfo getShardInfo(Player player) {
-		// TODO: For now, just use the current shard name.
+		// TODO: For now, just use the first shard name.
 		// Eventually need some sorcery to let a player select a different entry
-		String shardName;
-		try {
-			shardName = NetworkRelayAPI.getShardName();
-		} catch (Exception e) {
-			MMLog.severe("Could not get shard name while handling player join event!");
+		ShardInfo info = null;
+		for (ShardInfo shardInfo : mShardInfoMap.values()) {
+			info = shardInfo;
+			break;
+		}
+		if (info == null) {
+			MMLog.fine("No shard info found.");
 			return null;
 		}
-		if (shardName == null) {
-			MMLog.severe("Got null shard name while handling player join event!");
-			return null;
-		}
-
-		ShardInfo shardInfo = getShardInfo(shardName);
-		if (shardInfo == null) {
-			MMLog.fine(() -> "No shard info for " + shardName);
-			return null;
-		}
-		return shardInfo;
+		return info;
 	}
 
 	public static @Nullable ShardInfo getShardInfo(String shardName) {
