@@ -1,6 +1,5 @@
 package com.playmonumenta.worlds.paper;
 
-import com.playmonumenta.networkrelay.NetworkRelayAPI;
 import com.playmonumenta.worlds.common.CustomLogger;
 import com.playmonumenta.worlds.common.MMLog;
 import java.io.File;

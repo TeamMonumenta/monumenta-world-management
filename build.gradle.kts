@@ -86,7 +86,7 @@ bukkit {
     apiVersion = "1.13"
     name = "MonumentaWorldManagement"
     authors = listOf("The Monumenta Team")
-    depend = listOf("CommandAPI", "MonumentaNetworkRelay", "MonumentaRedisSync")
+    depend = listOf("CommandAPI", "MonumentaRedisSync")
     softDepend = listOf("LightCleaner")
 }
 
