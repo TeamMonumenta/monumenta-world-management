@@ -125,9 +125,7 @@ tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
     options.compilerArgs.add("-Xmaxwarns")
     options.compilerArgs.add("10000")
-
-    // TODO: Also need to re-enable these deprecation warnings
-    //options.compilerArgs.add("-Xlint:deprecation")
+    options.compilerArgs.add("-Xlint:deprecation")
 
     options.errorprone {
         option("NullAway:AnnotatedPackages", "com.playmonumenta")
@@ -186,7 +184,6 @@ tasks.create("build-deploy") {
             session(adminssh) {
                 put(shadowJar.archiveFile.get().getAsFile(), "/home/epic/project_epic/server_config/plugins")
                 execute("cd /home/epic/project_epic/server_config/plugins && rm -f MonumentaWorldManagement.jar && ln -s " + shadowJar.archiveFileName.get() + " MonumentaWorldManagement.jar")
-                execute("cd /home/epic/project_epic/mobs/plugins && rm -f MonumentaWorldManagement.jar && ln -s ../../server_config/plugins/MonumentaWorldManagement.jar")
             }
         }
     }
