@@ -1,18 +1,21 @@
 package com.playmonumenta.worlds.paper;
 
+import com.playmonumenta.worlds.common.CustomLogger;
+import com.playmonumenta.worlds.common.MMLog;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import javax.annotation.Nullable;
-
-import com.playmonumenta.worlds.common.CustomLogger;
-
 import org.bukkit.Bukkit;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 
@@ -20,19 +23,13 @@ public class WorldManagementPlugin extends JavaPlugin {
 	private static @Nullable WorldManagementPlugin INSTANCE = null;
 
 	private static @Nullable CustomLogger mLogger = null;
-	private static String mTemplateWorldName = "template";
-	private static String mBaseWorldName = "world";
 	private static boolean mSortWorldByScoreOnJoin = false;
 	private static boolean mSortWorldByScoreOnRespawn = false;
 	private static boolean mAllowInstanceAutocreation = false;
-	private static int mPregeneratedInstances = 0;
 	private static int mUnloadInactiveWorldAfterTicks = 10 * 60 * 20;
-	private static String mInstanceObjective = "Instance";
-	private static @Nullable String mJoinInstanceCommand = null;
-	private static @Nullable String mRejoinInstanceCommand = null;
-	private static @Nullable String mRespawnInstanceCommand = null;
 	private static @Nullable String mNotifyWorldPermission = "monumenta.worldmanagement.worldnotify";
 	private static String mCopyWorldCommand = "cp -a";
+	private static final Map<String, ShardInfo> mShardInfoMap = new HashMap<>();
 
 	private @Nullable WorldManagementListener mListener = null;
 	private @Nullable WorldGenerator mGenerator = null;
@@ -45,10 +42,10 @@ public class WorldManagementPlugin extends JavaPlugin {
 	@Override
 	public void onEnable() {
 		INSTANCE = this;
+		mGenerator = WorldGenerator.getInstance();
 
 		loadConfig();
 
-		mGenerator = WorldGenerator.getInstance();
 		mListener = new WorldManagementListener(this);
 		Bukkit.getPluginManager().registerEvents(mListener, this);
 
@@ -65,7 +62,12 @@ public class WorldManagementPlugin extends JavaPlugin {
 				configFile.getParentFile().mkdirs();
 
 				// Copy the default config file
-				Files.copy(getClass().getResourceAsStream("/default_config.yml"), configFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+				InputStream defaultConfig = getClass().getResourceAsStream("/default_config.yml");
+				if (defaultConfig == null) {
+					getLogger().log(Level.SEVERE, "Failed to locate default configuration file; was the plugin jar replaced?");
+				} else {
+					Files.copy(defaultConfig, configFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+				}
 			} catch (IOException ex) {
 				getLogger().log(Level.SEVERE, "Failed to create configuration file");
 			}
@@ -82,17 +84,22 @@ public class WorldManagementPlugin extends JavaPlugin {
 			getLogger().warning("log-level=" + logLevel + " is invalid - defaulting to INFO");
 		}
 
-		mTemplateWorldName = config.getString("template-world-name", mTemplateWorldName);
-		printConfig("template-world-name", mTemplateWorldName);
-
-		mBaseWorldName = config.getString("base-world-name", mBaseWorldName);
-		printConfig("base-world-name", mBaseWorldName);
-
-		boolean deprecatedInstanced = config.getBoolean("is-instanced", false);
-		if (deprecatedInstanced) {
-			getLogger().warning("config 'is-instanced' is deprecated, please use the newer more specific config options");
-			mSortWorldByScoreOnJoin = true;
-			mSortWorldByScoreOnRespawn = true;
+		ConfigurationSection instancingConfig = config.getConfigurationSection("instancing");
+		mShardInfoMap.clear();
+		if (instancingConfig == null) {
+			printConfig("instancing", null);
+		} else {
+			printConfigHeader("instancing");
+			for (String shardName : instancingConfig.getKeys(false)) {
+				ConfigurationSection shardConfig = instancingConfig.getConfigurationSection(shardName);
+				if (shardConfig == null) {
+					printConfig("  " + shardName, null);
+				} else {
+					printConfigHeader("  " + shardName);
+					ShardInfo shardInfo = new ShardInfo(this, shardConfig);
+					mShardInfoMap.put(shardName, shardInfo);
+				}
+			}
 		}
 
 		mSortWorldByScoreOnJoin = config.getBoolean("sort-world-by-score-on-join", mSortWorldByScoreOnJoin);
@@ -104,35 +111,8 @@ public class WorldManagementPlugin extends JavaPlugin {
 		mAllowInstanceAutocreation = config.getBoolean("allow-instance-autocreation", mAllowInstanceAutocreation);
 		printConfig("allow-instance-autocreation", mAllowInstanceAutocreation);
 
-		mPregeneratedInstances = config.getInt("pregenerated-instances", mPregeneratedInstances);
-		printConfig("pregenerated-instances", mPregeneratedInstances);
-		if (mPregeneratedInstances <= 0) {
-			getLogger().warning("Highly recommend setting pregenerated-instances > 0. Instance autocreation may not work at all without this");
-		}
-
 		mUnloadInactiveWorldAfterTicks = config.getInt("unload-inactive-world-after-ticks", mUnloadInactiveWorldAfterTicks);
 		printConfig("unload-inactive-world-after-ticks", mUnloadInactiveWorldAfterTicks);
-
-		mInstanceObjective = config.getString("instance-objective", mInstanceObjective);
-		printConfig("instance-objective", mInstanceObjective);
-
-		mJoinInstanceCommand = config.getString("join-instance-command", mJoinInstanceCommand);
-		if (mJoinInstanceCommand != null && (mJoinInstanceCommand.equals("null") || mJoinInstanceCommand.isEmpty())) {
-			mJoinInstanceCommand = null;
-		}
-		printConfig("join-instance-command", mJoinInstanceCommand);
-
-		mRejoinInstanceCommand = config.getString("rejoin-instance-command", mRejoinInstanceCommand);
-		if (mRejoinInstanceCommand != null && (mRejoinInstanceCommand.equals("null") || mRejoinInstanceCommand.isEmpty())) {
-			mRejoinInstanceCommand = null;
-		}
-		printConfig("rejoin-instance-command", mRejoinInstanceCommand);
-
-		mRespawnInstanceCommand = config.getString("respawn-instance-command", mRespawnInstanceCommand);
-		if (mRespawnInstanceCommand != null && (mRespawnInstanceCommand.equals("null") || mRespawnInstanceCommand.isEmpty())) {
-			mRespawnInstanceCommand = null;
-		}
-		printConfig("respawn-instance-command", mRespawnInstanceCommand);
 
 		mNotifyWorldPermission = config.getString("notify-world-permission", mNotifyWorldPermission);
 		if (mNotifyWorldPermission != null && (mNotifyWorldPermission.equals("null") || mNotifyWorldPermission.isEmpty())) {
@@ -146,18 +126,18 @@ public class WorldManagementPlugin extends JavaPlugin {
 		if (mListener != null) {
 			mListener.reloadConfig();
 		}
+
+		if (mGenerator != null) {
+			mGenerator.reloadConfig();
+		}
 	}
 
-	private <T> void printConfig(String configKey, @Nullable T value) {
+	protected void printConfigHeader(String configKey) {
+		getLogger().info(configKey + ":");
+	}
+
+	protected <T> void printConfig(String configKey, @Nullable T value) {
 		getLogger().info(configKey + "=" + (value == null ? "null" : value));
-	}
-
-	public static String getTemplateWorldName() {
-		return mTemplateWorldName;
-	}
-
-	public static String getBaseWorldName() {
-		return mBaseWorldName;
 	}
 
 	public static boolean isSortWorldByScoreOnJoin() {
@@ -172,28 +152,44 @@ public class WorldManagementPlugin extends JavaPlugin {
 		return mAllowInstanceAutocreation;
 	}
 
-	public static int getPregeneratedInstances() {
-		return mPregeneratedInstances;
+	public static @Nullable ShardInfo getShardInfo(Player player) {
+		// TODO: For now, just use the first shard name.
+		// Eventually need some sorcery to let a player select a different entry
+		ShardInfo info = null;
+		for (ShardInfo shardInfo : mShardInfoMap.values()) {
+			info = shardInfo;
+			break;
+		}
+		if (info == null) {
+			MMLog.fine("No shard info found.");
+			return null;
+		}
+		return info;
+	}
+
+	public static @Nullable ShardInfo getShardInfo(String shardName) {
+		return mShardInfoMap.get(shardName);
+	}
+
+	public static Map<String, Integer> getPregeneratedInstanceLimits() {
+		// TODO Expose an unmodifiable map so the world generator can handle this part
+		Map<String, Integer> templatePregenLimits = new HashMap<>();
+		for (ShardInfo shardInfo : mShardInfoMap.values()) {
+			int shardPregenLimit = shardInfo.getPregeneratedInstances();
+			if (shardPregenLimit > 0) {
+				for (String template : shardInfo.getVariantTemplates()) {
+					Integer oldLimit = templatePregenLimits.get(template);
+					if (oldLimit == null || oldLimit < shardPregenLimit) {
+						templatePregenLimits.put(template, shardPregenLimit);
+					}
+				}
+			}
+		}
+		return templatePregenLimits;
 	}
 
 	public static int getUnloadInactiveWorldAfterTicks() {
 		return mUnloadInactiveWorldAfterTicks;
-	}
-
-	public static String getInstanceObjective() {
-		return mInstanceObjective;
-	}
-
-	public static @Nullable String getJoinInstanceCommand() {
-		return mJoinInstanceCommand;
-	}
-
-	public static @Nullable String getRejoinInstanceCommand() {
-		return mRejoinInstanceCommand;
-	}
-
-	public static @Nullable String getRespawnInstanceCommand() {
-		return mRespawnInstanceCommand;
 	}
 
 	public static @Nullable String getNotifyWorldPermission() {
@@ -223,7 +219,6 @@ public class WorldManagementPlugin extends JavaPlugin {
 	}
 
 	/* If this ever returned null everything would explode anyway, no reason to add error handling around this */
-	@SuppressWarnings("NullAway")
 	protected static WorldManagementPlugin getInstance() {
 		if (INSTANCE == null) {
 			throw new RuntimeException("WorldManagementPlugin accessed before loading");

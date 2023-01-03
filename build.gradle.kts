@@ -36,10 +36,6 @@ repositories {
     }
 
     maven {
-        url = uri("https://raw.githubusercontent.com/TeamMonumenta/monumenta-network-relay/master/mvn-repo/")
-    }
-
-    maven {
         url = uri("https://raw.githubusercontent.com/TeamMonumenta/monumenta-redis-sync/master/mvn-repo/")
     }
 
@@ -60,7 +56,6 @@ repositories {
 dependencies {
     compileOnly("com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT")
     compileOnly("dev.jorel.CommandAPI:commandapi-core:6.0.0")
-    compileOnly("com.playmonumenta:monumenta-network-relay:1.0")
     compileOnly("com.playmonumenta:redissync:3.0")
     compileOnly("com.bergerkiller.bukkit:LightCleaner:1.15.2-v1")
     compileOnly("com.bergerkiller.bukkit:BKCommonLib:1.15.2-v2")
@@ -86,7 +81,7 @@ bukkit {
     apiVersion = "1.13"
     name = "MonumentaWorldManagement"
     authors = listOf("The Monumenta Team")
-    depend = listOf("CommandAPI", "MonumentaNetworkRelay", "MonumentaRedisSync")
+    depend = listOf("CommandAPI", "MonumentaRedisSync")
     softDepend = listOf("LightCleaner")
 }
 
@@ -95,7 +90,7 @@ bungee {
     name = "MonumentaWorldManagement"
     main = "com.playmonumenta.worlds.bungee.WorldManagementBungeePlugin"
     author = "The Monumenta Team"
-    depends = setOf("MonumentaNetworkRelay", "MonumentaRedisSync")
+    depends = setOf("MonumentaRedisSync")
 }
 
 pmd {

@@ -17,6 +17,7 @@ import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.World;
@@ -45,7 +46,7 @@ public class MonumentaWorldManagementAPI {
 
 	/**
 	 * Checks whether the named world exists and could be loaded.
-	 *
+	 * <p>
 	 * Note that this uses file I/O and so will be slow - recommend calling this only from an async thread
 	 */
 	public static boolean isWorldAvailable(String worldName) {
@@ -63,9 +64,9 @@ public class MonumentaWorldManagementAPI {
 
 	/**
 	 * Gets a list of all the named world folders.
-	 *
+	 * <p>
 	 * Note that this uses file I/O and so will be slow - recommend calling this only from an async thread
-	 *
+	 * <p>
 	 * Updates the available worlds cache, but may take a tick or two before the cache is updated
 	 */
 	public static String[] getAvailableWorlds() {
@@ -89,13 +90,13 @@ public class MonumentaWorldManagementAPI {
 
 	/**
 	 * Sorts a player to their appropriate instance world based on their score.
-	 *
+	 * <p>
 	 * Many trigger several other things:
 	 * - Player data will be saved
 	 * - Join command (if configured) runs on player the next tick if this results in changing the player's current world
 	 * - Rejoin command (if configured) runs on player the next tick if they are already on this world
 	 * - Additional instances will start pregenerating (if configured)
-	 *
+	 * <p>
 	 * Must be called from the main thread
 	 */
 	public static void sortWorld(Player player) throws Exception {
@@ -108,74 +109,65 @@ public class MonumentaWorldManagementAPI {
 		player.saveData();
 
 		// Figure out what world the player would sort to
-		World newWorld = listener.getSortWorld(player, player.getWorld().getName());
+		World newWorld = listener.getSortWorld(player);
 
 		// Move the player to that world at their last position (or world spawn)
 		MonumentaRedisSyncAPI.getPlayerWorldData(player, newWorld).applyToPlayer(player);
 	}
 
 	/**
-	 * @deprecated
-	 * This method can no longer be called async (2nd parameter) and will be removed from the API eventually. Use the one with two arguments.
-	 */
-	@Deprecated
-	public static World ensureWorldLoaded(String worldName, boolean unused, boolean copyTemplateIfNotExist) throws Exception {
-		return ensureWorldLoaded(worldName, copyTemplateIfNotExist);
-	}
-
-	/**
 	 * Gets the specified world, loading and optionally creating it if needed.
-	 *
+	 * <p>
 	 * Will always return a non-null world, or throw an exception if the request is not possible
-	 *
+	 * <p>
 	 * If world is already loaded will return it (fast)
 	 * If world already exists but is not loaded, will load that world (slow, maybe a few ticks on good hardware)
-	 * If world does not exist and copyTemplateIfNotExist, will rename a pregenerated world to that name and load it
-	 *
+	 * If world does not exist and templateName is not null, will rename a pregenerated world to that name and load it
+	 * <p>
 	 * Must be called from the main thread
 	 */
-	public static World ensureWorldLoaded(String worldName, boolean copyTemplateIfNotExist) throws Exception {
+	public static World ensureWorldLoaded(String worldName, @Nullable String templateName) throws Exception {
 		WorldManagementPlugin plugin = WorldManagementPlugin.getInstance();
 		if (plugin == null) {
 			throw new Exception("MonumentaWorldManagement plugin is not loaded");
 		}
 		Logger logger = plugin.getLogger();
-		logger.fine("ensureWorldLoaded enter: worldName=" + worldName + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " thread=" + Thread.currentThread().getName());
+		logger.fine("ensureWorldLoaded enter: worldName=" + worldName + " templateName=" + templateName + " thread=" + Thread.currentThread().getName());
 
 		/* Try to get existing world first */
 		World newWorld = Bukkit.getWorld(worldName);
 		if (newWorld != null) {
-			logger.fine("ensureWorldLoaded found existing unlocked: worldName=" + worldName + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " thread=" + Thread.currentThread().getName());
+			logger.fine("ensureWorldLoaded found existing unlocked: worldName=" + worldName + " templateName=" + templateName + " thread=" + Thread.currentThread().getName());
 			return newWorld;
 		}
 
-		logger.fine("ensureWorldLoaded world not loaded: worldName=" + worldName + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " thread=" + Thread.currentThread().getName());
+		logger.fine("ensureWorldLoaded world not loaded: worldName=" + worldName + " templateName=" + templateName + " thread=" + Thread.currentThread().getName());
 
 		//TODO Check redis to make sure world isn't loaded or created elsewhere
 
 		/* Copy world if it doesn't exist */
 		File worldFolder = new File(worldName);
 		if (worldFolder.isDirectory()) {
-			logger.fine("ensureWorldLoaded folder exists: worldName=" + worldName + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " thread=" + Thread.currentThread().getName());
+			logger.fine("ensureWorldLoaded folder exists: worldName=" + worldName + " templateName=" + templateName + " thread=" + Thread.currentThread().getName());
 		} else {
 			/* Not allowed to create so return null */
-			if (!copyTemplateIfNotExist) {
-				throw new Exception("World '" + worldName + "' does not exist and copyTemplateIfNotExist is false");
+			if (templateName == null) {
+				throw new Exception("World '" + worldName + "' does not exist and templateName is null");
 			}
 
 			/* Create the world using a pregenerated instance - if none are available, throw an exception */
-			plugin.getWorldGenerator().getWorldInstance(worldName);
+			plugin.getWorldGenerator().getWorldInstance(worldName, templateName);
 
 			AVAILABLE_WORLDS_CACHE = Arrays.copyOf(AVAILABLE_WORLDS_CACHE, AVAILABLE_WORLDS_CACHE.length + 1);
 			AVAILABLE_WORLDS_CACHE[AVAILABLE_WORLDS_CACHE.length - 1] = worldName;
 
-			logger.fine("ensureWorldLoaded created new: worldName=" + worldName + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " thread=" + Thread.currentThread().getName());
+			logger.fine("ensureWorldLoaded created new: worldName=" + worldName + " templateName=" + templateName + " thread=" + Thread.currentThread().getName());
 		}
 
-		logger.fine("ensureWorldLoaded sync loadworld: worldName=" + worldName + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " thread=" + Thread.currentThread().getName());
+		logger.fine("ensureWorldLoaded sync loadworld: worldName=" + worldName + " templateName=" + templateName + " thread=" + Thread.currentThread().getName());
 		newWorld = new WorldCreator(worldName).type(WorldType.NORMAL).generateStructures(false).environment(Environment.NORMAL).createWorld();
 
-		logger.fine("ensureWorldLoaded loaded world: worldName=" + worldName + " copyTemplateIfNotExist=" + copyTemplateIfNotExist + " thread=" + Thread.currentThread().getName());
+		logger.fine("ensureWorldLoaded loaded world: worldName=" + worldName + " templateName=" + templateName + " thread=" + Thread.currentThread().getName());
 
 		if (newWorld == null) {
 			throw new Exception("Failed to create world '" + worldName + "' - world is somehow null after creating which should never happen");
@@ -280,11 +272,11 @@ public class MonumentaWorldManagementAPI {
 
 	/**
 	 * Copies a world
-	 *
+	 * <p>
 	 * Does most of its work on an async thread, and completes the future on the main thread when done.
-	 *
+	 * <p>
 	 * Checks that the source world exists and is not loaded
-	 *
+	 * <p>
 	 * Suggest using .whenComplete((unused, ex) -> your code) to do something on the main thread when done
 	 */
 	public static CompletableFuture<Void> copyWorld(String fromWorldName, String newWorldName) {
@@ -329,12 +321,12 @@ public class MonumentaWorldManagementAPI {
 
 	/**
 	 * Deletes a world.
-	 *
+	 * <p>
 	 * Does most of its work on an async thread, and completes the future on the main thread when done.
-	 *
+	 * <p>
 	 * Checks that the world is actually a world (has a level.dat file), and will also
 	 * refuse to delete the folder if it contains more than one level of subfolder.
-	 *
+	 * <p>
 	 * Suggest using .whenComplete((unused, ex) -> your code) to do something on the main thread when done
 	 */
 	public static CompletableFuture<Void> deleteWorld(String worldName) {

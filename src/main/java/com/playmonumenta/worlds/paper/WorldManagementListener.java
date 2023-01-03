@@ -54,21 +54,34 @@ public class WorldManagementListener implements Listener {
 		}
 
 		Player player = event.getPlayer();
-		int score = ScoreboardUtils.getScoreboardValue(player, WorldManagementPlugin.getInstanceObjective()).orElse(0);
+
+		ShardInfo info = WorldManagementPlugin.getShardInfo(player);
+		if (info == null) {
+			mLogger.severe("sort-world-by-score-on-respawn is True but no instancing shard info exists");
+			return;
+		}
+
+		int score = ScoreboardUtils.getScoreboardValue(player, info.getInstanceObjective()).orElse(0);
 		if (score <= 0) {
 			player.sendMessage(ChatColor.RED + "You respawned on an instanced world without an instance assigned to you. Unless you are an operator, this is probably a bug");
 		} else {
 			try {
 				/* World should already be loaded, just need to grab it */
-				World world = MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, WorldManagementPlugin.allowInstanceAutocreation());
+				String templateName;
+				if (WorldManagementPlugin.allowInstanceAutocreation()) {
+					templateName = info.getVariant(player);
+				} else {
+					templateName = null;
+				}
+				World world = MonumentaWorldManagementAPI.ensureWorldLoaded(info.getBaseWorldName() + score, templateName);
 
 				// RESPAWN: The player is respawning in this world after having (probably) died there
-				if (WorldManagementPlugin.getRespawnInstanceCommand() != null) {
+				if (info.getRespawnInstanceCommand() != null) {
 					Bukkit.getScheduler().runTaskLater(mPlugin, () -> {
 						// Note that this will run after the player has been moved to the correct world, since it runs a tick later
 						if (Bukkit.getOnlinePlayers().contains(player)) {
 							mLogger.fine("Running respawn command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
-							Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + WorldManagementPlugin.getRespawnInstanceCommand());
+							Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + info.getRespawnInstanceCommand());
 						}
 					}, 1);
 				}
@@ -97,7 +110,7 @@ public class WorldManagementListener implements Listener {
 			if (lastSavedWorldName != null) {
 				// If not an instanced server, still try to load the player's last world & put them there
 				try {
-					World world = MonumentaWorldManagementAPI.ensureWorldLoaded(lastSavedWorldName, false);
+					World world = MonumentaWorldManagementAPI.ensureWorldLoaded(lastSavedWorldName, null);
 					event.setWorld(world);
 				} catch (Exception ex) {
 					String msg = "Failed to load the last world you were on (" + lastSavedWorldName + "): " + ex.getMessage();
@@ -108,7 +121,7 @@ public class WorldManagementListener implements Listener {
 			}
 		} else {
 			try {
-				event.setWorld(getSortWorld(player, event.getLastSavedWorldName()));
+				event.setWorld(getSortWorld(player));
 			} catch (Exception ex) {
 				mLogger.warning("Failed to set world for player " + player.getName() + ": " + ex.getMessage());
 			}
@@ -125,12 +138,16 @@ public class WorldManagementListener implements Listener {
 
 	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
 	public void playerJoinEvent(PlayerJoinEvent event) {
-		String instanceObjective = WorldManagementPlugin.getInstanceObjective();
+		Player player = event.getPlayer();
+		ShardInfo info = WorldManagementPlugin.getShardInfo(player);
+		if (info == null) {
+			return;
+		}
+		String instanceObjective = info.getInstanceObjective();
 		if (instanceObjective.isEmpty()) {
 			return;
 		}
 
-		Player player = event.getPlayer();
 		int score = ScoreboardUtils.getScoreboardValue(player, instanceObjective).orElse(0);
 		if (score <= 0) {
 			return;
@@ -152,10 +169,10 @@ public class WorldManagementListener implements Listener {
 		String command;
 		if (firstJoin) {
 			// JOIN: The player is joining this world for the first time
-			command = WorldManagementPlugin.getJoinInstanceCommand();
+			command = info.getJoinInstanceCommand();
 		} else {
 			// REJOIN: The player is joining this world after having most recently left this world
-			command = WorldManagementPlugin.getRejoinInstanceCommand();
+			command = info.getRejoinInstanceCommand();
 		}
 		if (command != null) {
 			mLogger.fine("Running (re)join command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
@@ -166,8 +183,9 @@ public class WorldManagementListener implements Listener {
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
 	public void playerSaveEvent(PlayerSaveEvent event) {
 		Player player = event.getPlayer();
+		ShardInfo info = WorldManagementPlugin.getShardInfo(player);
 		UUID playerId = player.getUniqueId();
-		String instanceObjective = WorldManagementPlugin.getInstanceObjective();
+		String instanceObjective = info == null ? "" : info.getInstanceObjective();
 		int score = ScoreboardUtils.getScoreboardValue(player, instanceObjective).orElse(0);
 
 		JsonObject pluginData = MonumentaRedisSyncAPI.getPlayerPluginData(playerId, IDENTIFIER);
@@ -242,20 +260,30 @@ public class WorldManagementListener implements Listener {
 	 * <p>
 	 * Throws an exception if score is 0 or the world fails to load. Will trigger instance pregeneration if applicable.
 	 * <p>
-	 * If the new world's name is not the provided currentWorldName, then the join command will run, otherwise the rejoin command will run as the player (if configured)
-	 * <p>
 	 * Will not actually put the player on this world - need to do this and then also set their location data.
 	 * <p>
 	 * XXX: This should only be called as a precursor to moving the player to this world immediately afterwards on this same tick, otherwise the join/rejoin functions will be called incorrectly!
 	 * <p>
 	 * Must be called from the main thread
 	 */
-	protected World getSortWorld(Player player, @Nullable String currentWorldName) throws Exception {
-		int score = ScoreboardUtils.getScoreboardValue(player, WorldManagementPlugin.getInstanceObjective()).orElse(0);
+	protected World getSortWorld(Player player) throws Exception {
+		ShardInfo info = WorldManagementPlugin.getShardInfo(player);
+		if (info == null) {
+			throw new Exception("Tried to get sort world for player but no instancing shard info exists");
+		}
+
+		int score = ScoreboardUtils.getScoreboardValue(player, info.getInstanceObjective()).orElse(0);
 		if (score <= 0) {
 			throw new Exception("Tried to sort player but instance score is 0");
 		}
 
-		return MonumentaWorldManagementAPI.ensureWorldLoaded(WorldManagementPlugin.getBaseWorldName() + score, WorldManagementPlugin.allowInstanceAutocreation());
+		String templateName;
+		if (WorldManagementPlugin.allowInstanceAutocreation()) {
+			templateName = info.getVariant(player);
+		} else {
+			templateName = null;
+		}
+
+		return MonumentaWorldManagementAPI.ensureWorldLoaded(info.getBaseWorldName() + score, templateName);
 	}
 }
