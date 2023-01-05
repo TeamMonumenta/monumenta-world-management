@@ -5,8 +5,8 @@ import com.playmonumenta.redissync.MonumentaRedisSyncAPI;
 import dev.jorel.commandapi.CommandAPI;
 import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.CommandPermission;
+import dev.jorel.commandapi.arguments.ArgumentSuggestions;
 import dev.jorel.commandapi.arguments.EntitySelectorArgument;
-import dev.jorel.commandapi.arguments.EntitySelectorArgument.EntitySelector;
 import dev.jorel.commandapi.arguments.IntegerArgument;
 import dev.jorel.commandapi.arguments.LocationArgument;
 import dev.jorel.commandapi.arguments.LocationType;
@@ -95,21 +95,23 @@ public class WorldCommands {
 					}))
 				.withSubcommand(new CommandAPICommand("loadworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.loadworld"))
-					.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
+					.withArguments(new StringArgument("worldName").replaceSuggestions(
+						ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
 					.executes((sender, args) -> {
 						String worldName = (String)args[0];
 
 						try {
 							MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, false);
 						} catch (Exception ex) {
-							CommandAPI.fail(ex.getMessage());
+							throw CommandAPI.failWithString(ex.getMessage());
 						}
 
 						sender.sendMessage("Loaded world: " + worldName);
 					}))
 				.withSubcommand(new CommandAPICommand("unloadworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.unloadworld"))
-					.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> Bukkit.getWorlds().stream().map(World::getName).toArray(String[]::new)))
+					.withArguments(new StringArgument("worldName").replaceSuggestions(
+						ArgumentSuggestions.strings((info) -> Bukkit.getWorlds().stream().map(World::getName).toArray(String[]::new))))
 					.executes((sender, args) -> {
 						String worldName = (String)args[0];
 
@@ -141,20 +143,21 @@ public class WorldCommands {
 					}))
 				.withSubcommand(new CommandAPICommand("forceworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.forceworld"))
-					.withArguments(new EntitySelectorArgument("player", EntitySelector.ONE_PLAYER))
-					.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
+					.withArguments(new EntitySelectorArgument.OnePlayer("player"))
+					.withArguments(new StringArgument("worldName").replaceSuggestions(
+						ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
 					.executes((sender, args) -> {
 						forceWorld(sender, (Player)args[0], (String)args[1]);
 					}))
 				.withSubcommand(new CommandAPICommand("sortworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.sortworld"))
-					.withArguments(new EntitySelectorArgument("player", EntitySelector.ONE_PLAYER))
+					.withArguments(new EntitySelectorArgument.OnePlayer("player"))
 					.executes((sender, args) -> {
 						try {
 							MonumentaWorldManagementAPI.sortWorld((Player)args[0]);
 						} catch (Exception ex) {
 							ex.printStackTrace();
-							CommandAPI.fail(ex.getMessage());
+							throw CommandAPI.failWithString(ex.getMessage());
 						}
 					}))
 				.withSubcommand(new CommandAPICommand("createworld")
@@ -178,7 +181,8 @@ public class WorldCommands {
 					}))
 				.withSubcommand(new CommandAPICommand("copyworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.copyworld"))
-					.withArguments(new StringArgument("copyFromWorldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
+					.withArguments(new StringArgument("copyFromWorldName").replaceSuggestions(
+						ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
 					.withArguments(new StringArgument("newWorldName"))
 					.executes((sender, args) -> {
 						String fromWorldName = (String)args[0];
@@ -195,7 +199,8 @@ public class WorldCommands {
 					}))
 				.withSubcommand(new CommandAPICommand("deleteworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.deleteworld"))
-					.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
+					.withArguments(new StringArgument("worldName").replaceSuggestions(
+						ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
 					.executes((sender, args) -> {
 						String worldName = (String)args[0];
 
@@ -222,7 +227,8 @@ public class WorldCommands {
 				// Upgrade all worlds, starting with the one specified
 				.withSubcommand(new CommandAPICommand("upgradeallworlds")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.upgradeworlds"))
-					.withArguments(new StringArgument("startWorldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
+					.withArguments(new StringArgument("startWorldName").replaceSuggestions(
+						ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
 					// This command can only be called via the console to protect against accidental use
 					.executesConsole((sender, args) -> {
 						String startWorld = (String)args[0];
@@ -245,7 +251,8 @@ public class WorldCommands {
 				// Upgrade a specific world
 				.withSubcommand(new CommandAPICommand("upgradeworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.upgradeworld"))
-					.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
+					.withArguments(new StringArgument("worldName").replaceSuggestions(
+						ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
 					// This command can only be called via the console to protect against accidental use
 					.executesConsole((sender, args) -> {
 						String worldName = (String)args[0];
@@ -263,7 +270,8 @@ public class WorldCommands {
 		// Register a copy of "/monumenta worldmanagement forceworld @s world" as "/world <world>" for convenience
 		new CommandAPICommand("world")
 			.withPermission(CommandPermission.fromString("monumenta.worldmanagement.forceworld"))
-			.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
+			.withArguments(new StringArgument("worldName").replaceSuggestions(
+				ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
 			.executesPlayer((player, args) -> {
 				forceWorld(player, player, (String)args[0]);
 			})
@@ -286,8 +294,9 @@ public class WorldCommands {
 
 		new CommandAPICommand("tptoworld")
 			.withPermission(CommandPermission.fromString("monumenta.worldmanagement.tptoworld"))
-			.withArguments(new EntitySelectorArgument("targets", EntitySelector.MANY_PLAYERS))
-			.withArguments(new StringArgument("worldName").replaceSuggestions((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds()))
+			.withArguments(new EntitySelectorArgument.ManyPlayers("targets"))
+			.withArguments(new StringArgument("worldName").replaceSuggestions(
+				ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
 			.withArguments(new LocationArgument("location"))
 			.executes((sender, args) -> {
 				try {

@@ -1,16 +1,15 @@
 package com.playmonumenta.worlds.paper;
 
+import com.playmonumenta.worlds.common.CustomLogger;
+import dev.jorel.commandapi.CommandAPI;
+import dev.jorel.commandapi.CommandAPIConfig;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import javax.annotation.Nullable;
-
-import com.playmonumenta.worlds.common.CustomLogger;
-
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -39,12 +38,23 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 	@Override
 	public void onLoad() {
+		// Load the CommandAPI. We enable verbose logging and allow the CommandAPI
+		// to generate a file command_registration.json for debugging purposes
+		CommandAPI.onLoad(
+			new CommandAPIConfig()
+				.verboseOutput(true)
+				.dispatcherFile(new File(getDataFolder(), "worldmanagement_command_registration.json"))
+		);
+
 		WorldCommands.register(this);
 	}
 
 	@Override
 	public void onEnable() {
 		INSTANCE = this;
+
+		// Enable the CommandAPI
+		CommandAPI.onEnable(this);
 
 		loadConfig();
 
