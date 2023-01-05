@@ -2,6 +2,8 @@ package com.playmonumenta.worlds.paper;
 
 import com.playmonumenta.worlds.common.CustomLogger;
 import com.playmonumenta.worlds.common.MMLog;
+import dev.jorel.commandapi.CommandAPI;
+import dev.jorel.commandapi.CommandAPIConfig;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,12 +38,24 @@ public class WorldManagementPlugin extends JavaPlugin {
 
 	@Override
 	public void onLoad() {
+		// Load the CommandAPI. We enable verbose logging and allow the CommandAPI
+		// to generate a file command_registration.json for debugging purposes
+		CommandAPI.onLoad(
+			new CommandAPIConfig()
+				.verboseOutput(true)
+				.dispatcherFile(new File(getDataFolder(), "worldmanagement_command_registration.json"))
+		);
+
 		WorldCommands.register(this);
 	}
 
 	@Override
 	public void onEnable() {
 		INSTANCE = this;
+
+		// Enable the CommandAPI
+		CommandAPI.onEnable(this);
+
 		mGenerator = WorldGenerator.getInstance();
 
 		loadConfig();
