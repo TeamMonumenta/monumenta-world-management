@@ -55,7 +55,7 @@ repositories {
 
 dependencies {
     compileOnly("com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT")
-    implementation("dev.jorel.CommandAPI:commandapi-shade:8.7.0")
+    implementation("dev.jorel.CommandAPI:commandapi-shade:8.7.1")
     compileOnly("com.playmonumenta:redissync:3.0")
     compileOnly("com.bergerkiller.bukkit:LightCleaner:1.15.2-v1")
     compileOnly("com.bergerkiller.bukkit:BKCommonLib:1.15.2-v2")
