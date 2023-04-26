@@ -7,6 +7,7 @@ import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.CommandPermission;
 import dev.jorel.commandapi.arguments.ArgumentSuggestions;
 import dev.jorel.commandapi.arguments.EntitySelectorArgument;
+import dev.jorel.commandapi.arguments.FloatArgument;
 import dev.jorel.commandapi.arguments.IntegerArgument;
 import dev.jorel.commandapi.arguments.LocationArgument;
 import dev.jorel.commandapi.arguments.LocationType;
@@ -303,7 +304,24 @@ public class WorldCommands {
 			.withArguments(new LocationArgument("location"))
 			.executes((sender, args) -> {
 				try {
-					teleportToWorld((Collection<Entity>)args[0], (String) args[1], (Location) args[2]);
+					teleportToWorld((Collection<Entity>) args[0], (String) args[1], (Location) args[2], 0, 0);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			})
+			.register();
+
+		new CommandAPICommand("tptoworld")
+			.withPermission(CommandPermission.fromString("monumenta.worldmanagement.tptoworld"))
+			.withArguments(new EntitySelectorArgument.ManyPlayers("targets"))
+			.withArguments(new StringArgument("worldName").replaceSuggestions(
+				ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
+			.withArguments(new LocationArgument("location"))
+			.withArguments(new FloatArgument("yaw"))
+			.withArguments(new FloatArgument("pitch"))
+			.executes((sender, args) -> {
+				try {
+					teleportToWorld((Collection<Entity>) args[0], (String) args[1], (Location) args[2], (Float) args[3], (Float) args[4]);
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -311,9 +329,9 @@ public class WorldCommands {
 			.register();
 	}
 
-	public static void teleportToWorld(Collection<Entity> targets, String world, Location loc) throws Exception {
+	public static void teleportToWorld(Collection<Entity> targets, String world, Location loc, float yaw, float pitch) throws Exception {
 		World actualWorld = MonumentaWorldManagementAPI.ensureWorldLoaded(world, null);
-		Location newLoc = new Location(actualWorld, loc.getX(), loc.getY(), loc.getZ());
+		Location newLoc = new Location(actualWorld, loc.getX(), loc.getY(), loc.getZ(), yaw, pitch);
 		for (Entity player : targets) {
 			player.teleport(newLoc);
 		}
