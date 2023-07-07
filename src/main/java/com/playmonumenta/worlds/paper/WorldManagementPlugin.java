@@ -43,11 +43,11 @@ public class WorldManagementPlugin extends JavaPlugin {
 	public void onEnable() {
 		INSTANCE = this;
 
-		mGenerator = WorldGenerator.getInstance();
+		getWorldGenerator();
 
 		loadConfig();
 
-		mListener = new WorldManagementListener(this);
+		getListener();
 		Bukkit.getPluginManager().registerEvents(mListener, this);
 
 		MonumentaWorldManagementAPI.refreshCachedAvailableWorlds();
@@ -124,13 +124,12 @@ public class WorldManagementPlugin extends JavaPlugin {
 		mCopyWorldCommand = config.getString("copy-world-command", mCopyWorldCommand);
 		printConfig("copy-world-command", mCopyWorldCommand);
 
-		if (mListener != null) {
-			mListener.reloadConfig();
-		}
+		reload();
+	}
 
-		if (mGenerator != null) {
-			mGenerator.reloadConfig();
-		}
+	public void reload() {
+		getListener().reloadConfig();
+		getWorldGenerator().reloadConfig();
 	}
 
 	protected void printConfigHeader(String configKey) {
@@ -225,6 +224,13 @@ public class WorldManagementPlugin extends JavaPlugin {
 			throw new RuntimeException("WorldManagementPlugin accessed before loading");
 		}
 		return INSTANCE;
+	}
+
+	protected WorldManagementListener getListener() {
+		if (mListener == null) {
+			mListener = new WorldManagementListener(this);
+		}
+		return mListener;
 	}
 
 	protected WorldGenerator getWorldGenerator() {

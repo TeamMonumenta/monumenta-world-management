@@ -23,6 +23,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -267,6 +268,18 @@ public class WorldCommands {
 
 						// Upgrade
 						upgradeWorlds(List.of(worldName));
+					}))
+				.withSubcommand(new CommandAPICommand("reload")
+					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.reload"))
+					.executes((sender, args) -> {
+						WorldManagementPlugin.getInstance().reload();
+						sender.sendMessage(Component.text("Finished reloading config; world generation restarted if possible."));
+					}))
+				.withSubcommand(new CommandAPICommand("stopgeneration")
+					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.stopgeneration"))
+					.executes((sender, args) -> {
+						WorldManagementPlugin.getInstance().getWorldGenerator().cancelGeneration();
+						sender.sendMessage(Component.text("World generation stopped. Reload config to restart."));
 					}))
 			).register();
 
