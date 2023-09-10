@@ -1,6 +1,5 @@
 package com.playmonumenta.worlds.paper;
 
-import com.bergerkiller.bukkit.lightcleaner.lighting.LightingService;
 import com.playmonumenta.redissync.MonumentaRedisSyncAPI;
 import dev.jorel.commandapi.CommandAPI;
 import dev.jorel.commandapi.CommandAPICommand;
@@ -359,7 +358,6 @@ public class WorldCommands {
 	 * <p>
 	 * For each specified world name:
 	 * - Load world,
-	 * - Run LightCleaner on it
 	 * - Wait for completion
 	 * - Unload world (continue on failure)
 	 * <p>
@@ -373,6 +371,7 @@ public class WorldCommands {
 			Logger log = WorldManagementPlugin.getInstance().getLogger();
 			int numUpgraded = worldNames.size();
 			log.info("Started upgrading " + numUpgraded + " worlds...");
+			log.info("NOTE: This will only do something useful if server was started with -Ddisable.watchdog=true -jar <jarname> --forceUpgrade --eraseCache");
 
 			new BukkitRunnable() {
 				@Nullable String mLastWorldName = null;
@@ -380,49 +379,42 @@ public class WorldCommands {
 
 				@Override
 				public void run() {
-					// If LightingService is done
-					if (!LightingService.isProcessing()) {
-						// If there was a last world, unload it
-						if (mLastWorldName != null) {
-							log.info("Finished upgrading world '" + mLastWorldName + "'");
-							log.fine(() -> "Upgrading took " + (System.currentTimeMillis() - mStartTime) + " milliseconds");
-							MonumentaWorldManagementAPI.unloadWorld(mLastWorldName).whenComplete((unused, ex) -> {
-								if (ex != null) {
-									log.severe("Failed to unload world '" + mLastWorldName + "': " + ex.getMessage());
-								} else {
-									log.info("Unloaded world '" + mLastWorldName + "'");
-								}
-							});
-						}
+					// If there was a last world, unload it
+					if (mLastWorldName != null) {
+						log.info("Finished upgrading world '" + mLastWorldName + "'");
+						log.fine(() -> "Upgrading took " + (System.currentTimeMillis() - mStartTime) + " milliseconds");
+						MonumentaWorldManagementAPI.unloadWorld(mLastWorldName).whenComplete((unused, ex) -> {
+							if (ex != null) {
+								log.severe("Failed to unload world '" + mLastWorldName + "': " + ex.getMessage());
+							} else {
+								log.info("Unloaded world '" + mLastWorldName + "'");
+							}
+						});
+					}
 
-						if (worldNames.isEmpty()) {
-							// Done, exit
-							log.info("Completed upgrading " + numUpgraded + " worlds");
-							this.cancel();
-							return;
-						}
+					if (worldNames.isEmpty()) {
+						// Done, exit
+						log.info("Completed upgrading " + numUpgraded + " worlds");
+						this.cancel();
+						return;
+					}
 
-						// Not done, keep processing
-						mLastWorldName = worldNames.remove(0);
-						mStartTime = System.currentTimeMillis();
-						log.info("Started upgrading world '" + mLastWorldName + "'");
+					// Not done, keep processing
+					mLastWorldName = worldNames.remove(0);
+					mStartTime = System.currentTimeMillis();
+					log.info("Started upgrading world '" + mLastWorldName + "'");
 
-						// Load world
-						World world;
-						try {
-							world = MonumentaWorldManagementAPI.ensureWorldLoaded(mLastWorldName, null);
-						} catch (Exception ex) {
-							// Severe error, fail and stop loading new worlds so it doesn't get missed
-							log.severe("Failed to load world '" + mLastWorldName + "': " + ex.getMessage());
-							this.cancel();
-							return;
-						}
-
-						// Use LightCleaner to safely load all the chunks of the world (and fix light as a bonus)
-						LightingService.scheduleWorld(world);
+					// Load world
+					try {
+						MonumentaWorldManagementAPI.ensureWorldLoaded(mLastWorldName, null);
+					} catch (Exception ex) {
+						// Severe error, fail and stop loading new worlds so it doesn't get missed
+						log.severe("Failed to load world '" + mLastWorldName + "': " + ex.getMessage());
+						this.cancel();
+						return;
 					}
 				}
-			}.runTaskTimer(WorldManagementPlugin.getInstance(), 0, 20);
+			}.runTaskTimer(WorldManagementPlugin.getInstance(), 0, 5);
 		});
 	}
 }
