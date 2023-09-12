@@ -65,7 +65,7 @@ public class WorldGenerator {
 	public void reloadConfig() {
 		mStopped = true;
 		if (mPregenScheduler != null) {
-			cancelGeneration();
+			cancelGeneration(true);
 		}
 		mPregenStates.clear();
 
@@ -217,7 +217,7 @@ public class WorldGenerator {
 				+ " due to lack of updated instances");
 		}
 
-		MMLog.fine("Moving " + pregeneratedWorldName + " to " + worldName);
+		MMLog.info("Moving " + pregeneratedWorldName + " to " + worldName);
 		File oldPath = new File(pregeneratedWorldName);
 		File target = new File(worldName);
 		if (!oldPath.renameTo(target)) {
@@ -226,7 +226,7 @@ public class WorldGenerator {
 				pregenState.mPregenerated.add(pregeneratedWorldName);
 			}
 			if (worldExists(worldName)) {
-				MMLog.info("World " + worldName + " somehow appeared without moving a preloaded world");
+				MMLog.warning("World " + worldName + " somehow appeared without moving a preloaded world");
 			} else {
 				MMLog.severe("Failed to load " + worldName + "!");
 			}
@@ -376,7 +376,7 @@ public class WorldGenerator {
 
 						// Hit retry limit, cancel generation
 						MMLog.severe("Got " + mFailures + " back-to-back pregeneration failures; aborting pregeneration");
-						cancelGeneration();
+						cancelGeneration(true);
 						return;
 					}
 
@@ -384,14 +384,14 @@ public class WorldGenerator {
 				}
 
 				MMLog.info("All pregeneration complete.");
-				cancelGeneration();
+				cancelGeneration(false);
 			}
 		};
 		mPregenScheduler.runTaskAsynchronously(WorldManagementPlugin.getInstance());
 	}
 
-	public void cancelGeneration() {
-		mStopped = true;
+	public void cancelGeneration(boolean stopGenerating) {
+		mStopped = stopGenerating;
 		if (mPregenScheduler != null) {
 			mPregenScheduler.cancel();
 			mPregenScheduler = null;
