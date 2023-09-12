@@ -277,7 +277,7 @@ public class WorldCommands {
 				.withSubcommand(new CommandAPICommand("stopgeneration")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.stopgeneration"))
 					.executes((sender, args) -> {
-						WorldManagementPlugin.getInstance().getWorldGenerator().cancelGeneration();
+						WorldManagementPlugin.getInstance().getWorldGenerator().cancelGeneration(true);
 						sender.sendMessage(Component.text("World generation stopped. Reload config to restart."));
 					}))
 			).register();
