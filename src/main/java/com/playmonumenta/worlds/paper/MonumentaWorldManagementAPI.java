@@ -9,11 +9,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
@@ -25,10 +21,8 @@ import org.bukkit.World.Environment;
 import org.bukkit.WorldCreator;
 import org.bukkit.WorldType;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
 
 public class MonumentaWorldManagementAPI {
-	private static final int FORCE_LOAD_RADIUS = 2;
 
 	private static String[] AVAILABLE_WORLDS_CACHE = new String[0];
 
@@ -201,71 +195,13 @@ public class MonumentaWorldManagementAPI {
 			world.unloadChunkRequest(chunk.getX(), chunk.getZ());
 		}
 
-		new BukkitRunnable() {
-			int mTicks = 0;
-
-			@Override
-			public void run() {
-				mTicks += 1;
-
-				if (world.getPlayers().size() > 0) {
-					// A player showed up, cancel
-					this.cancel();
-					future.completeExceptionally(new Exception("Player showed up on world " + world.getName() + ", cancelling unload"));
-					return;
-				}
-
-				List<Chunk> forceLoadedChunks = new ArrayList<>(world.getForceLoadedChunks());
-				List<Chunk> chunksLeft;
-				if (forceLoadedChunks.isEmpty()) {
-					chunksLeft = Arrays.asList(world.getLoadedChunks());
-				} else {
-					Set<Long> forceLoadedKeys = new TreeSet<>();
-					for (Chunk chunk : forceLoadedChunks) {
-						int cx = chunk.getX();
-						int cz = chunk.getZ();
-						for (int cz2 = cz - FORCE_LOAD_RADIUS; cz2 <= cz + FORCE_LOAD_RADIUS; cz2++) {
-							for (int cx2 = cx - FORCE_LOAD_RADIUS; cx2 <= cx + FORCE_LOAD_RADIUS; cx2++) {
-								forceLoadedKeys.add(Chunk.getChunkKey(cx2, cz2));
-							}
-						}
-					}
-					chunksLeft = new ArrayList<>();
-					for (Chunk chunk : world.getLoadedChunks()) {
-						if (!forceLoadedKeys.contains(chunk.getChunkKey())) {
-							chunksLeft.add(chunk);
-						}
-					}
-				}
-
-				if (chunksLeft.size() == 0) {
-					// All the chunks unloaded, try to unload the world now
-					this.cancel();
-
-					world.save();
-					if (Bukkit.unloadWorld(world, true)) {
-						// Success!
-						future.complete(null);
-					} else {
-						// Nope
-						future.completeExceptionally(new Exception("Unloading world '" + worldName + "' failed, unknown reason"));
-					}
-					return;
-				}
-
-				// Still more chunks to unload, keep trying to unload them
-				for (Chunk chunk : chunksLeft) {
-					world.unloadChunkRequest(chunk.getX(), chunk.getZ());
-				}
-
-				WorldManagementPlugin.getInstance().getLogger().fine("Unloading chunks for world " + world.getName() + ", still " + chunksLeft.size() + " left to go");
-
-				if (mTicks >= 400) {
-					this.cancel();
-					future.completeExceptionally(new Exception("Timed out waiting for chunks to unload for world " + world.getName()));
-				}
-			}
-		}.runTaskTimer(WorldManagementPlugin.getInstance(), 1, 1);
+		if (Bukkit.unloadWorld(world, true)) {
+			// Success!
+			future.complete(null);
+		} else {
+			// Nope
+			future.completeExceptionally(new Exception("Unloading world '" + worldName + "' failed, unknown reason"));
+		}
 
 		return future;
 	}
