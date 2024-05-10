@@ -1,9 +1,5 @@
 import net.minecrell.pluginyml.bukkit.BukkitPluginDescription
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-import org.hidetake.groovy.ssh.core.Remote
-import org.hidetake.groovy.ssh.core.RunHandler
-import org.hidetake.groovy.ssh.core.Service
-import org.hidetake.groovy.ssh.session.SessionHandler
 import net.ltgt.gradle.errorprone.errorprone
 import net.ltgt.gradle.errorprone.CheckSeverity
 
@@ -14,9 +10,9 @@ plugins {
     id("com.github.johnrengelman.shadow") version "7.1.2"
     id("net.minecrell.plugin-yml.bukkit") version "0.5.1" // Generates plugin.yml
     id("net.minecrell.plugin-yml.bungee") version "0.5.1" // Generates bungee.yml
-    id("org.hidetake.ssh") version "2.10.1"
     id("net.ltgt.errorprone") version "2.0.2"
     id("net.ltgt.nullaway") version "1.3.0"
+	id("com.playmonumenta.deployment") version "1.0"
     checkstyle
     pmd
 }
@@ -56,7 +52,7 @@ repositories {
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.19.4-R0.1-SNAPSHOT")
-    compileOnly("dev.jorel:commandapi-bukkit-core:9.4.0")
+    compileOnly("dev.jorel:commandapi-bukkit-core:9.4.1")
     compileOnly("com.playmonumenta:redissync:3.0")
     compileOnly("com.bergerkiller.bukkit:BKCommonLib:1.19.4-v2")
     errorprone("com.google.errorprone:error_prone_core:2.10.0")
@@ -142,87 +138,4 @@ tasks.withType<JavaCompile>().configureEach {
     }
 }
 
-val basicssh = remotes.create("basicssh") {
-    host = "admin-eu.playmonumenta.com"
-    port = 8822
-    user = "epic"
-    agent = System.getenv("IDENTITY_FILE") == null
-    identity = if (System.getenv("IDENTITY_FILE") == null) null else file(System.getenv("IDENTITY_FILE"))
-    knownHosts = allowAnyHosts
-}
-
-val adminssh = remotes.create("adminssh") {
-    host = "admin-eu.playmonumenta.com"
-    port = 9922
-    user = "epic"
-    agent = System.getenv("IDENTITY_FILE") == null
-    identity = if (System.getenv("IDENTITY_FILE") == null) null else file(System.getenv("IDENTITY_FILE"))
-    knownHosts = allowAnyHosts
-}
-
-tasks.create("stage-deploy") {
-    val shadowJar by tasks.named<ShadowJar>("shadowJar")
-    dependsOn(shadowJar)
-    doLast {
-        ssh.runSessions {
-            session(basicssh) {
-                put(shadowJar.archiveFile.get().getAsFile(), "/home/epic/stage/m12/server_config/plugins")
-                execute("cd /home/epic/stage/m12/server_config/plugins && rm -f MonumentaWorldManagement.jar && ln -s " + shadowJar.archiveFileName.get() + " MonumentaWorldManagement.jar")
-            }
-        }
-    }
-}
-
-tasks.create("volt-deploy") {
-    val shadowJar by tasks.named<ShadowJar>("shadowJar")
-    dependsOn(shadowJar)
-    doLast {
-        ssh.runSessions {
-            session(basicssh) {
-                put(shadowJar.archiveFile.get().getAsFile(), "/home/epic/volt/m12/server_config/plugins")
-                execute("cd /home/epic/volt/m12/server_config/plugins && rm -f MonumentaWorldManagement.jar && ln -s " + shadowJar.archiveFileName.get() + " MonumentaWorldManagement.jar")
-            }
-        }
-    }
-}
-
-tasks.create("build-deploy") {
-    val shadowJar by tasks.named<ShadowJar>("shadowJar")
-    dependsOn(shadowJar)
-    doLast {
-        ssh.runSessions {
-            session(adminssh) {
-                put(shadowJar.archiveFile.get().getAsFile(), "/home/epic/project_epic/server_config/plugins")
-                execute("cd /home/epic/project_epic/server_config/plugins && rm -f MonumentaWorldManagement.jar && ln -s " + shadowJar.archiveFileName.get() + " MonumentaWorldManagement.jar")
-            }
-        }
-    }
-}
-
-tasks.create("play-deploy") {
-    val shadowJar by tasks.named<ShadowJar>("shadowJar")
-    dependsOn(shadowJar)
-    doLast {
-        ssh.runSessions {
-            session(adminssh) {
-                put(shadowJar.archiveFile.get().getAsFile(), "/home/epic/play/m8/server_config/plugins")
-                put(shadowJar.archiveFile.get().getAsFile(), "/home/epic/play/m11/server_config/plugins")
-                put(shadowJar.archiveFile.get().getAsFile(), "/home/epic/play/m13/server_config/plugins")
-                put(shadowJar.archiveFile.get().getAsFile(), "/home/epic/play/m15/server_config/plugins")
-                execute("cd /home/epic/play/m8/server_config/plugins && rm -f MonumentaWorldManagement.jar && ln -s " + shadowJar.archiveFileName.get() + " MonumentaWorldManagement.jar")
-                execute("cd /home/epic/play/m11/server_config/plugins && rm -f MonumentaWorldManagement.jar && ln -s " + shadowJar.archiveFileName.get() + " MonumentaWorldManagement.jar")
-                execute("cd /home/epic/play/m13/server_config/plugins && rm -f MonumentaWorldManagement.jar && ln -s " + shadowJar.archiveFileName.get() + " MonumentaWorldManagement.jar")
-                execute("cd /home/epic/play/m15/server_config/plugins && rm -f MonumentaWorldManagement.jar && ln -s " + shadowJar.archiveFileName.get() + " MonumentaWorldManagement.jar")
-            }
-        }
-    }
-}
-
-fun Service.runSessions(action: RunHandler.() -> Unit) =
-    run(delegateClosureOf(action))
-
-fun RunHandler.session(vararg remotes: Remote, action: SessionHandler.() -> Unit) =
-    session(*remotes, delegateClosureOf(action))
-
-fun SessionHandler.put(from: Any, into: Any) =
-    put(hashMapOf("from" to from, "into" to into))
+ssh.easySetup(tasks.named<ShadowJar>("shadowJar").get(), "MonumentaWorldManagement")
