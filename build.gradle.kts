@@ -19,6 +19,7 @@ plugins {
 
 repositories {
     mavenLocal()
+
     maven {
         url = uri("https://repo.papermc.io/repository/maven-public/")
     }
@@ -50,10 +51,10 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT")
-    compileOnly("dev.jorel.CommandAPI:commandapi-core:8.7.0")
+    compileOnly("io.papermc.paper:paper-api:1.19.4-R0.1-SNAPSHOT")
+    compileOnly("dev.jorel:commandapi-bukkit-core:9.4.1")
     compileOnly("com.playmonumenta:redissync:3.0")
-    compileOnly("com.bergerkiller.bukkit:BKCommonLib:1.15.2-v2")
+    compileOnly("com.bergerkiller.bukkit:BKCommonLib:1.19.4-v2")
     errorprone("com.google.errorprone:error_prone_core:2.10.0")
     errorprone("com.uber.nullaway:nullaway:0.9.5")
 
@@ -62,12 +63,14 @@ dependencies {
     compileOnly("com.google.code.gson:gson:2.8.5")
 }
 
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+}
+
 group = "com.playmonumenta"
 val gitVersion: groovy.lang.Closure<String> by extra
 version = gitVersion()
 description = "MonumentaWorldManagement"
-java.sourceCompatibility = JavaVersion.VERSION_1_8
-java.targetCompatibility = JavaVersion.VERSION_1_8
 
 // Configure plugin.yml generation
 bukkit {

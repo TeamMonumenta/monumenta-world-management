@@ -4,6 +4,7 @@ import com.playmonumenta.redissync.MonumentaRedisSyncAPI;
 import dev.jorel.commandapi.CommandAPI;
 import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.CommandPermission;
+import dev.jorel.commandapi.arguments.Argument;
 import dev.jorel.commandapi.arguments.ArgumentSuggestions;
 import dev.jorel.commandapi.arguments.EntitySelectorArgument;
 import dev.jorel.commandapi.arguments.FloatArgument;
@@ -23,8 +24,8 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
@@ -38,6 +39,22 @@ public class WorldCommands {
 
 	@SuppressWarnings("unchecked")
 	public static void register(WorldManagementPlugin worldPlugin) {
+		ArgumentSuggestions<CommandSender> cachedWorldNameSuggestions = ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds());
+
+		LocationArgument locationArg = new LocationArgument("location", LocationType.PRECISE_POSITION);
+		IntegerArgument valueArg = new IntegerArgument("value", -1, 32);
+		Argument<String> cachedWorldNameArg = new StringArgument("worldName").replaceSuggestions(cachedWorldNameSuggestions);
+		Argument<String> allWorldNameArg = new StringArgument("worldName").replaceSuggestions(
+			ArgumentSuggestions.strings((info) -> Bukkit.getWorlds().stream().map(World::getName).toArray(String[]::new)));
+		EntitySelectorArgument.OnePlayer playerArg = new EntitySelectorArgument.OnePlayer("player");
+		StringArgument worldNameArg = new StringArgument("worldName");
+		StringArgument templateNameArg = new StringArgument("templateName");
+		Argument<String> copyFromArg = new StringArgument("copyFromWorldName").replaceSuggestions(cachedWorldNameSuggestions);
+		StringArgument newWorldNameArg = new StringArgument("newWorldName");
+		EntitySelectorArgument.ManyPlayers targetsArg = new EntitySelectorArgument.ManyPlayers("targets");
+		FloatArgument yawArg = new FloatArgument("yaw");
+		FloatArgument pitchArg = new FloatArgument("pitch");
+
 		new CommandAPICommand("monumenta")
 			.withSubcommand(new CommandAPICommand("worldmanagement")
 				.withSubcommand(new CommandAPICommand("changeloglevel")
@@ -60,11 +77,11 @@ public class WorldCommands {
 						})))
 				.withSubcommand(new CommandAPICommand("setviewdistance")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.setviewdistance"))
-					.withArguments(new LocationArgument("location", LocationType.PRECISE_POSITION))
-					.withArguments(new IntegerArgument("value", -1, 32))
+					.withArguments(locationArg)
+					.withArguments(valueArg)
 					.executes((sender, args) -> {
-						World world = ((Location)args[0]).getWorld();
-						int distance = (Integer)args[1];
+						World world = args.getByArgument(locationArg).getWorld();
+						int distance = args.getByArgument(valueArg);
 
 						if (distance > 0) {
 							if (!INITIAL_VIEW_DISTANCES.containsKey(world.getUID())) {
@@ -91,16 +108,15 @@ public class WorldCommands {
 							List<String> listOfPlayerNames = world.getPlayers().stream().map(HumanEntity::getName).collect(Collectors.toList());
 							sender.sendMessage("  " + world.getName() + ": " + String.join(", ", listOfPlayerNames));
 						}
-						if (sender instanceof Player) {
-							sender.sendMessage("Current world: " + ((Player)sender).getWorld().getName());
+						if (sender instanceof Player player) {
+							sender.sendMessage("Current world: " + player.getWorld().getName());
 						}
 					}))
 				.withSubcommand(new CommandAPICommand("loadworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.loadworld"))
-					.withArguments(new StringArgument("worldName").replaceSuggestions(
-						ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
+					.withArguments(cachedWorldNameArg)
 					.executes((sender, args) -> {
-						String worldName = (String)args[0];
+						String worldName = args.getByArgument(cachedWorldNameArg);
 
 						try {
 							MonumentaWorldManagementAPI.ensureWorldLoaded(worldName, null);
@@ -112,10 +128,9 @@ public class WorldCommands {
 					}))
 				.withSubcommand(new CommandAPICommand("unloadworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.unloadworld"))
-					.withArguments(new StringArgument("worldName").replaceSuggestions(
-						ArgumentSuggestions.strings((info) -> Bukkit.getWorlds().stream().map(World::getName).toArray(String[]::new))))
+					.withArguments(allWorldNameArg)
 					.executes((sender, args) -> {
-						String worldName = (String)args[0];
+						String worldName = args.getByArgument(allWorldNameArg);
 
 						sender.sendMessage("Started unloading world: " + worldName);
 						MonumentaWorldManagementAPI.unloadWorld(worldName).whenComplete((unused, ex) -> {
@@ -145,18 +160,17 @@ public class WorldCommands {
 					}))
 				.withSubcommand(new CommandAPICommand("forceworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.forceworld"))
-					.withArguments(new EntitySelectorArgument.OnePlayer("player"))
-					.withArguments(new StringArgument("worldName").replaceSuggestions(
-						ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
+					.withArguments(playerArg)
+					.withArguments(cachedWorldNameArg)
 					.executes((sender, args) -> {
-						forceWorld(sender, (Player)args[0], (String)args[1]);
+						forceWorld(sender, args.getByArgument(playerArg), args.getByArgument(cachedWorldNameArg));
 					}))
 				.withSubcommand(new CommandAPICommand("sortworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.sortworld"))
-					.withArguments(new EntitySelectorArgument.OnePlayer("player"))
+					.withArguments(playerArg)
 					.executes((sender, args) -> {
 						try {
-							MonumentaWorldManagementAPI.sortWorld((Player)args[0]);
+							MonumentaWorldManagementAPI.sortWorld(args.getByArgument(playerArg));
 						} catch (Exception ex) {
 							ex.printStackTrace();
 							throw CommandAPI.failWithString(ex.getMessage());
@@ -164,11 +178,11 @@ public class WorldCommands {
 					}))
 				.withSubcommand(new CommandAPICommand("createworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.createworld"))
-					.withArguments(new StringArgument("worldName"))
-					.withArguments(new StringArgument("templateName"))
+					.withArguments(worldNameArg)
+					.withArguments(templateNameArg)
 					.executes((sender, args) -> {
-						String worldName = (String)args[0];
-						String templateName = (String)args[1];
+						String worldName = args.getByArgument(worldNameArg);
+						String templateName = args.getByArgument(templateNameArg);
 
 						if (MonumentaWorldManagementAPI.isWorldAvailable(worldName)) {
 							sender.sendMessage("World '" + worldName + "' already exists, this command is for creating new worlds");
@@ -185,12 +199,11 @@ public class WorldCommands {
 					}))
 				.withSubcommand(new CommandAPICommand("copyworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.copyworld"))
-					.withArguments(new StringArgument("copyFromWorldName").replaceSuggestions(
-						ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
-					.withArguments(new StringArgument("newWorldName"))
+					.withArguments(copyFromArg)
+					.withArguments(newWorldNameArg)
 					.executes((sender, args) -> {
-						String fromWorldName = (String)args[0];
-						String newWorldName = (String)args[1];
+						String fromWorldName = args.getByArgument(copyFromArg);
+						String newWorldName = args.getByArgument(newWorldNameArg);
 
 						sender.sendMessage("Attempting to copy world '" + fromWorldName + "' to '" + newWorldName + "'...");
 						MonumentaWorldManagementAPI.copyWorld(fromWorldName, newWorldName).whenComplete((unused, ex) -> {
@@ -203,10 +216,9 @@ public class WorldCommands {
 					}))
 				.withSubcommand(new CommandAPICommand("deleteworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.deleteworld"))
-					.withArguments(new StringArgument("worldName").replaceSuggestions(
-						ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
+					.withArguments(cachedWorldNameArg)
 					.executes((sender, args) -> {
-						String worldName = (String)args[0];
+						String worldName = args.getByArgument(cachedWorldNameArg);
 
 						MonumentaWorldManagementAPI.deleteWorld(worldName).whenComplete((unused, ex) -> {
 							if (ex != null) {
@@ -231,11 +243,10 @@ public class WorldCommands {
 				// Upgrade all worlds, starting with the one specified
 				.withSubcommand(new CommandAPICommand("upgradeallworlds")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.upgradeworlds"))
-					.withArguments(new StringArgument("startWorldName").replaceSuggestions(
-						ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
+					.withArguments(cachedWorldNameArg)
 					// This command can only be called via the console to protect against accidental use
 					.executesConsole((sender, args) -> {
-						String startWorld = (String)args[0];
+						String startWorld = args.getByArgument(cachedWorldNameArg);
 
 						// Get a list of all worldNames in alphabetical order
 						List<String> worldNames = Arrays.asList(MonumentaWorldManagementAPI.getAvailableWorlds());
@@ -255,11 +266,10 @@ public class WorldCommands {
 				// Upgrade a specific world
 				.withSubcommand(new CommandAPICommand("upgradeworld")
 					.withPermission(CommandPermission.fromString("monumenta.worldmanagement.upgradeworld"))
-					.withArguments(new StringArgument("worldName").replaceSuggestions(
-						ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
+					.withArguments(cachedWorldNameArg)
 					// This command can only be called via the console to protect against accidental use
 					.executesConsole((sender, args) -> {
-						String worldName = (String)args[0];
+						String worldName = args.getByArgument(cachedWorldNameArg);
 						if (!MonumentaWorldManagementAPI.isWorldAvailable(worldName)) {
 							sender.sendMessage("Invalid world '" + worldName + "'");
 							return;
@@ -286,10 +296,9 @@ public class WorldCommands {
 		// Register a copy of "/monumenta worldmanagement forceworld @s world" as "/world <world>" for convenience
 		new CommandAPICommand("world")
 			.withPermission(CommandPermission.fromString("monumenta.worldmanagement.forceworld"))
-			.withArguments(new StringArgument("worldName").replaceSuggestions(
-				ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
+			.withArguments(cachedWorldNameArg)
 			.executesPlayer((player, args) -> {
-				forceWorld(player, player, (String)args[0]);
+				forceWorld(player, player, args.getByArgument(cachedWorldNameArg));
 			})
 			.register();
 
@@ -302,38 +311,22 @@ public class WorldCommands {
 					List<String> listOfPlayerNames = world.getPlayers().stream().map(HumanEntity::getName).collect(Collectors.toList());
 					sender.sendMessage("  " + world.getName() + ": " + String.join(", ", listOfPlayerNames));
 				}
-				if (sender instanceof Player) {
-					sender.sendMessage("Current world: " + ChatColor.AQUA + ((Player)sender).getWorld().getName());
+				if (sender instanceof Player player) {
+					sender.sendMessage(Component.text("Current world: ").append(Component.text(player.getWorld().getName(), NamedTextColor.AQUA)));
 				}
 			})
 			.register();
 
 		new CommandAPICommand("tptoworld")
 			.withPermission(CommandPermission.fromString("monumenta.worldmanagement.tptoworld"))
-			.withArguments(new EntitySelectorArgument.ManyPlayers("targets"))
-			.withArguments(new StringArgument("worldName").replaceSuggestions(
-				ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
-			.withArguments(new LocationArgument("location"))
+			.withArguments(targetsArg)
+			.withArguments(cachedWorldNameArg)
+			.withArguments(locationArg)
+			.withOptionalArguments(yawArg)
+			.withOptionalArguments(pitchArg)
 			.executes((sender, args) -> {
 				try {
-					teleportToWorld((Collection<Entity>) args[0], (String) args[1], (Location) args[2], 0, 0);
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			})
-			.register();
-
-		new CommandAPICommand("tptoworld")
-			.withPermission(CommandPermission.fromString("monumenta.worldmanagement.tptoworld"))
-			.withArguments(new EntitySelectorArgument.ManyPlayers("targets"))
-			.withArguments(new StringArgument("worldName").replaceSuggestions(
-				ArgumentSuggestions.strings((info) -> MonumentaWorldManagementAPI.getCachedAvailableWorlds())))
-			.withArguments(new LocationArgument("location"))
-			.withArguments(new FloatArgument("yaw"))
-			.withArguments(new FloatArgument("pitch"))
-			.executes((sender, args) -> {
-				try {
-					teleportToWorld((Collection<Entity>) args[0], (String) args[1], (Location) args[2], (Float) args[3], (Float) args[4]);
+					teleportToWorld(args.getByArgument(targetsArg), args.getByArgument(cachedWorldNameArg), args.getByArgument(locationArg), args.getByArgumentOrDefault(yawArg, 0f), args.getByArgumentOrDefault(pitchArg, 0f));
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -358,7 +351,7 @@ public class WorldCommands {
 
 				MonumentaRedisSyncAPI.getPlayerWorldData(player, newWorld).applyToPlayer(player);
 			} catch (Exception ex) {
-				sender.sendMessage(ChatColor.RED + ex.getMessage());
+				sender.sendMessage(Component.text(ex.getMessage(), NamedTextColor.RED));
 				ex.printStackTrace();
 			}
 		}, 1);
