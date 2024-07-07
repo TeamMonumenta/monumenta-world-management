@@ -17,19 +17,39 @@ You can download the latest version of this plugin from [GitHub Packages](https:
 
 ## Maven dependency
 ```xml
-    <repositories>
-        <repository>
-            <id>monumenta-world-management</id>
-            <url>https://raw.githubusercontent.com/TeamMonumenta/monumenta-world-management/master/mvn-repo/</url>
-        </repository>
-    </repositories>
+<repository>
+	<id>monumenta</id>
+	<name>Monumenta Maven Repo</name>
+	<url>https://maven.playmonumenta.com/releases</url>
+</repository>
+<dependencies>
+<dependency>
+	<groupId>com.playmonumenta</groupId>
+	<artifactId>worlds</artifactId>
+	<version>2.3.1</version>
+	<scope>provided</scope>
+</dependency>
+</dependencies>
+```
+Gradle (kotlin):
+```kts
+maven {
+    name = "monumenta"
+    url = uri("https://maven.playmonumenta.com/releases")
+}
 
-    <dependencies>
-        <dependency>
-            <groupId>com.playmonumenta</groupId>
-            <artifactId>worlds</artifactId>
-            <version>1.3</version>
-            <scope>provided</scope>
-        </dependency>
-    </dependencies>
+dependencies {
+	compileOnly("com.playmonumenta:worlds:2.3.1")
+}
+```
+Gradle (groovy):
+```groovy
+maven {
+    name "monumenta"
+    url "https://maven.playmonumenta.com/releases"
+}
+
+dependencies {
+	compileOnly "com.playmonumenta:worlds:2.3.1"
+}
 ```
