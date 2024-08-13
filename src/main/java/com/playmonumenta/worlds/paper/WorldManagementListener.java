@@ -231,7 +231,7 @@ public class WorldManagementListener implements Listener {
 				for (int i = 1; i < worlds.size(); i++) { // Ignore the primary world
 					World world = worlds.get(i);
 
-					if (world.getPlayers().size() > 0) {
+					if (!world.getPlayers().isEmpty()) {
 						worldIdleTimes.put(world.getUID(), 0);
 					} else {
 						int idleTime = worldIdleTimes.getOrDefault(world.getUID(), 0) + 200;
@@ -274,7 +274,13 @@ public class WorldManagementListener implements Listener {
 		}
 
 		int score = ScoreboardUtils.getScoreboardValue(player, info.getInstanceObjective()).orElse(0);
-		if (score <= 0) {
+		if (score == 0) {
+			List<World> worlds = Bukkit.getWorlds();
+			if (worlds.isEmpty()) {
+				throw new Exception("There are no loaded worlds; has the server started?");
+			}
+			return worlds.get(0);
+		} else if (score < 0) {
 			throw new Exception("Tried to sort player but instance score is 0");
 		}
 
