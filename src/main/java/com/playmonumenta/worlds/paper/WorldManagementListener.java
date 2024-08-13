@@ -11,8 +11,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -63,7 +64,7 @@ public class WorldManagementListener implements Listener {
 
 		int score = ScoreboardUtils.getScoreboardValue(player, info.getInstanceObjective()).orElse(0);
 		if (score <= 0) {
-			player.sendMessage(ChatColor.RED + "You respawned on an instanced world without an instance assigned to you. Unless you are an operator, this is probably a bug");
+			player.sendMessage(Component.text("You respawned on an instanced world without an instance assigned to you. Unless you are an operator, this is probably a bug", NamedTextColor.RED));
 		} else {
 			try {
 				/* World should already be loaded, just need to grab it */
@@ -130,7 +131,7 @@ public class WorldManagementListener implements Listener {
 		if (WorldManagementPlugin.getNotifyWorldPermission() != null && player.hasPermission(WorldManagementPlugin.getNotifyWorldPermission())) {
 			Bukkit.getScheduler().runTaskLater(mPlugin, () -> {
 				if (Bukkit.getOnlinePlayers().contains(player)) {
-					player.sendMessage(ChatColor.GREEN + "Joined world " + event.getWorld().getName());
+					player.sendMessage(Component.text("Joined world " + event.getWorld().getName(), NamedTextColor.GREEN));
 				}
 			}, 1);
 		}
@@ -212,7 +213,7 @@ public class WorldManagementListener implements Listener {
 	public void playerChangedWorldEvent(PlayerChangedWorldEvent event) {
 		Player player = event.getPlayer();
 		if (WorldManagementPlugin.getNotifyWorldPermission() != null && player.hasPermission(WorldManagementPlugin.getNotifyWorldPermission())) {
-			player.sendMessage(ChatColor.GREEN + "Changed to world " + player.getLocation().getWorld().getName());
+			player.sendMessage(Component.text("Changed to world " + player.getLocation().getWorld().getName(), NamedTextColor.GREEN));
 		}
 	}
 
