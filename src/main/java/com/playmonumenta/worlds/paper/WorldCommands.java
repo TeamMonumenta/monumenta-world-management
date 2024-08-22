@@ -146,7 +146,7 @@ public class WorldCommands {
 					.executes((sender, args) -> {
 						sender.sendMessage("Started unloading empty worlds");
 						for (World world : Bukkit.getWorlds()) {
-							if (world.getPlayers().size() == 0 && !world.equals(Bukkit.getWorlds().get(0))) {
+							if (world.getPlayers().isEmpty() && !world.equals(Bukkit.getWorlds().get(0))) {
 								String worldName = world.getName();
 								MonumentaWorldManagementAPI.unloadWorld(worldName).whenComplete((unused, ex) -> {
 									if (ex != null) {
@@ -417,7 +417,6 @@ public class WorldCommands {
 						// Severe error, fail and stop loading new worlds so it doesn't get missed
 						log.severe("Failed to load world '" + mLastWorldName + "': " + ex.getMessage());
 						this.cancel();
-						return;
 					}
 				}
 			}.runTaskTimer(WorldManagementPlugin.getInstance(), 0, 5);

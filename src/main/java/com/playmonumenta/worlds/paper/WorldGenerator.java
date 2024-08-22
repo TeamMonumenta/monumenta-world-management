@@ -208,6 +208,9 @@ public class WorldGenerator {
 		// Only wait a very short period of time - otherwise the watchdog may crash the server before one is available
 		String pregeneratedWorldName = pregenState.mPregenerated.poll(1, TimeUnit.SECONDS);
 		if (pregeneratedWorldName == null) {
+			if (pregenState.mError) {
+				throw new Exception("Unable to generate a new world of this type");
+			}
 			pregeneratedWorldName = pregenState.mOutdatedPregen.poll();
 			if (pregeneratedWorldName == null) {
 				schedulePregeneration();
@@ -246,6 +249,9 @@ public class WorldGenerator {
 	private boolean generateWorldInstance() throws Exception {
 		TemplatePregenState templateState = null;
 		for (TemplatePregenState pregenState : mPregenStates.values()) {
+			if (pregenState.mError) {
+				continue;
+			}
 			if (templateState == null) {
 				templateState = pregenState;
 				continue;
