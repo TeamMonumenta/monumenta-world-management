@@ -259,7 +259,7 @@ public class WorldManagementListener implements Listener {
 	/**
 	 * Gets the world where a player should be sorted to based on their instance score.
 	 * <p>
-	 * Throws an exception if score is 0 or the world fails to load. Will trigger instance pregeneration if applicable.
+	 * Throws an exception if score is negative or the world fails to load. Will trigger instance pregeneration if applicable.
 	 * <p>
 	 * Will not actually put the player on this world - need to do this and then also set their location data.
 	 * <p>
@@ -281,7 +281,7 @@ public class WorldManagementListener implements Listener {
 			}
 			return worlds.get(0);
 		} else if (score < 0) {
-			throw new Exception("Tried to sort player but instance score is 0");
+			throw new Exception("Tried to sort player but instance score is negative");
 		}
 
 		String templateName;
