@@ -6,13 +6,16 @@ import com.playmonumenta.redissync.MonumentaRedisSyncAPI;
 import com.playmonumenta.redissync.event.PlayerJoinSetWorldEvent;
 import com.playmonumenta.redissync.event.PlayerSaveEvent;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.md_5.bungee.api.event.PlayerDisconnectEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -21,6 +24,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -100,6 +104,8 @@ public class WorldManagementListener implements Listener {
 		}
 	}
 
+	public final Map<UUID, String> mHackJoinWorldFix = new HashMap<>();
+
 	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
 	public void playerJoinSetWorldEvent(PlayerJoinSetWorldEvent event) {
 		Player player = event.getPlayer();
@@ -122,7 +128,11 @@ public class WorldManagementListener implements Listener {
 			}
 		} else {
 			try {
-				event.setWorld(getSortWorld(player));
+				// FIXME: remove this hack when we make our code configuration aware
+				mHackJoinWorldFix.remove(player.getUniqueId());
+				final var world = getSortWorld(player);
+				event.setWorld(world);
+				mHackJoinWorldFix.put(player.getUniqueId(), world.getName());
 			} catch (Exception ex) {
 				mLogger.warning("Failed to set world for player " + player.getName() + ": " + ex.getMessage());
 			}
@@ -140,6 +150,8 @@ public class WorldManagementListener implements Listener {
 	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
 	public void playerJoinEvent(PlayerJoinEvent event) {
 		Player player = event.getPlayer();
+		// FIXME: remove this hack when we make our code configuration aware
+		Bukkit.getScheduler().runTaskLater(mPlugin, () -> mHackJoinWorldFix.remove(player.getUniqueId()), 20);
 		ShardInfo info = WorldManagementPlugin.getShardInfo(player);
 		if (info == null) {
 			return;
@@ -179,6 +191,13 @@ public class WorldManagementListener implements Listener {
 			mLogger.fine("Running (re)join command on player=" + player.getName() + " thread=" + Thread.currentThread().getName());
 			Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "execute as " + player.getUniqueId() + " at @s run " + command);
 		}
+	}
+
+		// FIXME: remove this hack when we make our code configuration aware
+	@EventHandler(priority = EventPriority.HIGHEST)
+	public void playerDisconnectEvent(PlayerQuitEvent event) {
+		final var uuid = event.getPlayer().getUniqueId();
+		Bukkit.getScheduler().runTask(mPlugin, () -> mHackJoinWorldFix.remove(uuid));
 	}
 
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)

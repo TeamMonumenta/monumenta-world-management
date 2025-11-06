@@ -185,9 +185,17 @@ public class MonumentaWorldManagementAPI {
 
 		//TODO Mark world as unloaded in redis
 
+		// This check can sometimes fail if player hasn't been added to world such as if they are in configuration phase
 		if (!world.getPlayers().isEmpty()) {
 			future.completeExceptionally(new Exception("Can't unload world '" + worldName + "' because there are still players in it"));
 			return future;
+		}
+
+		// This check might have a less chance of failing, but still could be a problem if the player hasn't reached configuration phase
+		for (final var loadingName : WorldManagementListener.getInstance().mHackJoinWorldFix.values()) {
+			if (world.getName() == loadingName) {
+				return future;
+			}
 		}
 
 		world.setKeepSpawnInMemory(false);
